@@ -80,6 +80,8 @@ void sbc(u8 x) { fc=((F>>4)&1);u=A-x-fc; FS(0,u==0,1,(A&15)-(x&15)-fc<0,A-x-fc<0
 void cp(u8 x) { FS(0,A==x,1,(A&15)-(x&15)<0,A-x<0); }
 void bit(u8 r, u8 mask) { FS(0x10,(r&mask)==0,0,1,0); }
 void sla(u8& r) { fc=(r>>7)&1;r<<=1; FS(0,r==0,0,0,fc); }
+void srl(u8& r) { fc=r&1;r>>=1; FS(0,r==0,0,0,fc); }
+void rl(u8& r) { fc=r>>7;r=(r<<1)|((F>>4)&1);FS(0,r==0,0,0,fc); }
 void rr(u8& r) { fc=r&1;r=(r>>1)|((F<<3)&0x80);FS(0,r==0,0,0,fc); }
 void swap(u8& r) { r=(r<<4)|(r>>4); FS(0,r==0,0,0,0); }
 
@@ -131,9 +133,16 @@ int main(int argc, char** argv) {
       case 0x0a: case 0x1a: A=r(*R16[op>>4]); break;
       OP4(0x0b): (*R16[op>>4])--; cy+=4; break;
       case 0x0f: fc=A&1;A=(fc<<7)|(A>>1);FS(0,0,0,0,fc); break;
+      case 0x17: fc=A>>7;A=(A<<1)|((F>>4)&1);FS(0,0,0,0,fc); break;
       case 0x18: jr(true); break;
       case 0x20: jr(!(F&0x80)); break;
       case 0x22: w(HL++, A); break;
+      case 0x27: fc=u=0;
+        if ((F&32)||(!(F&64)&&(A&15)>9)) u=6;
+        if ((F&16)||(!(F&64)&&A>153)) { u|=96;fc=1; }
+        A+=(F&64)?-u:u;
+        FS(0x41,A==0,0,0,fc);
+        break;
       case 0x28: jr(F&0x80); break;
       case 0x2a: A=r(HL++); break;
       case 0x2f: A=~A; FS(0x81,0,1,1,0); break;
@@ -159,6 +168,7 @@ int main(int argc, char** argv) {
       OP7(0x80): add(*R8[op&7]); break;
       case 0x86: add(r(HL)); break;
       OP7(0x88): adc(*R8[op&7]); break;
+      case 0x8e: adc(r(HL)); break;
       OP7(0x90): sub(*R8[op&7]); break;
       case 0x96: sub(r(HL)); break;
       OP7(0x98): sbc(*R8[op&7]); break;
@@ -173,6 +183,7 @@ int main(int argc, char** argv) {
       OP4(0xc1): *R162[(op-0xc1)>>4]=pop(); break;
       case 0xc2: jp(!(F&0x80)); break;
       case 0xc3: PC=r16(); cy+=4; break;
+      case 0xc4: U=r16(); if (!(F&0x80)) call(U); break;
       OP4(0xc5): push(*R162[(op-0xc5)>>4]); break;
       case 0xc6: add(r8()); break;
       case 0xc8: cy+=4; if (F&0x80) goto RET; break;
@@ -181,40 +192,52 @@ int main(int argc, char** argv) {
       case 0xcb: switch((op=r8())) {
         case 0x0b: fc=E&1;E=(fc<<7)|(E>>1);FS(0,E==0,0,0,fc); break;
         case 0x0e: u=r(HL);fc=u&1;u=(fc<<7)|(u>>1);FS(0,u==0,0,0,fc);w(HL,u); break;
-        case 0x12: fc=D>>7;D=(D<<1)|((F>>4)&1);FS(0,D==0,0,0,fc); break;
+        OP7(0x10): rl(*R8[op&7]); break;
         OP7(0x18): rr(*R8[op&7]); break;
         OP7(0x20): sla(*R8[op&7]); break;
         case 0x2a: fc=D&1;D=(s8)D>>1; FS(0,D==0,0,0,fc); break;
         OP7(0x30): swap(*R8[op&7]); break;
         case 0x36: u=r(HL);u=(u<<4)|(u>>4); FS(0,u==0,0,0,0);w(HL,u); break;
-        case 0x3f: fc=A&1;A>>=1; FS(0,A==0,0,0,fc); break;
+        OP7(0x38): srl(*R8[op&7]); break;
+        OP8X(0x46): bit(r(HL),1<<((op-0x46)>>3)); break;
         OP7(0x40): bit(*R8[op&7],1); break;
         OP7(0x48): bit(*R8[op&7],2); break;
         OP7(0x50): bit(*R8[op&7],4); break;
         OP7(0x58): bit(*R8[op&7],8); break;
-        OP7(0x60): bit(*R8[op&7],0x10); break;
-        OP7(0x68): bit(*R8[op&7],0x20); break;
-        OP7(0x70): bit(*R8[op&7],0x40); break;
-        OP7(0x78): bit(*R8[op&7],0x80); break;
-        case 0x87: A&=~1; break;
+        OP7(0x60): bit(*R8[op&7],16); break;
+        OP7(0x68): bit(*R8[op&7],32); break;
+        OP7(0x70): bit(*R8[op&7],64); break;
+        OP7(0x78): bit(*R8[op&7],128); break;
+        OP8X(0x86): w(HL,r(HL)&~(1<<((op-0x86)>>3))); break;
+        OP7(0x80): *R8[op&7]&=~1; break;
         OP7(0x88): *R8[op&7]&=~2; break;
         OP7(0x90): *R8[op&7]&=~4; break;
-        OP7(0xa8): *R8[op&7]&=~0x20; break;
-        OP8X(0x46): bit(r(HL),1<<((op-0x46)>>3)); break; 
-        OP8X(0x86): w(HL,r(HL)&~(1<<((op-0x86)>>3))); break; 
+        OP7(0x98): *R8[op&7]&=~8; break;
+        OP7(0xa0): *R8[op&7]&=~16; break;
+        OP7(0xa8): *R8[op&7]&=~32; break;
+        OP7(0xb0): *R8[op&7]&=~64; break;
+        OP7(0xb8): *R8[op&7]&=~128; break;
         OP8X(0xc6): w(HL,r(HL)|(1<<((op-0xc6)>>3))); break;
+        OP7(0xc0): *R8[op&7]|=1; break;
         OP7(0xc8): *R8[op&7]|=2; break;
-        OP7(0xf8): *R8[op&7]|=0x80; break;
+        OP7(0xd0): *R8[op&7]|=4; break;
+        OP7(0xd8): *R8[op&7]|=8; break;
+        OP7(0xe0): *R8[op&7]|=16; break;
+        OP7(0xe8): *R8[op&7]|=32; break;
+        OP7(0xf0): *R8[op&7]|=64; break;
+        OP7(0xf8): *R8[op&7]|=128; break;
         default: goto BAD;
       } break;
       case 0xcc: U=r16(); if (F&0x80) call(U); break;
       case 0xcd: call(r16()); break;
       case 0xd0: cy+=4; if (!(F&0x10)) goto RET; break;
       case 0xd2: jp(!(F&0x10)); break;
+      case 0xd4: U=r16(); if (!(F&0x10)) call(U); break;
       case 0xd6: sub(r8()); break;
       case 0xd8: cy+=4; if (F&0x10) goto RET; break;
       case 0xd9: IME=0x1f; goto RET;
       case 0xda: jp(F&0x10); break;
+      case 0xdc: U=r16(); if (F&0x10) call(U); break;
       case 0xde: sbc(r8()); break;
       case 0xe0: w(0xff00|r8(),A); break;
       case 0xe2: w(0xff00|C,A); break;
@@ -231,7 +254,7 @@ int main(int argc, char** argv) {
       case 0xfb: IME=0x1f; break;
       case 0xfe: cp(r8()); break;
  BAD: default:
-        fprintf(stderr, "unknown opcode: %02x\n", op);
+        fprintf(stderr, "unknown opcode: @%04x: %02x\n", PC, op);
         abort();
         break;
     }
