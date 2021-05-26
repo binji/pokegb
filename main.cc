@@ -1,19 +1,21 @@
-#include <cstdio>
+#include <SDL2/SDL.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 
-using u8=uint8_t; using s8=int8_t; using u16=uint16_t; using u64=uint64_t;
+using u8=uint8_t; using s8=int8_t; using u16=uint16_t; using u32=uint32_t; using u64=uint64_t;
 u8 op, u, fc, *rom0, *rom1, io[0x200], vram[0x2000], wram[0x4000], eram[0x8000],
     *eram1 = eram, R[] = {19, 0, 216, 0, 77, 1, 176, 1, 0, 1, 254, 255},
     &C = R[0], &B = R[1], &E = R[2], &D = R[3], &L = R[4], &H = R[5], &F = R[6],
     &A = R[7], *R8[] = {&B, &C, &D, &E, &H, &L, &F, &A}, &JOY = io[0x100],
-    &IF = io[0x10f], &LCDC = io[0x140], &LY = io[0x144], &IE = io[0x1ff],
-    IME = 0, halt = 0;
+    &IF = io[0x10f], &LCDC = io[0x140], &SCY = io[0x142], &SCX = io[0x143],
+    &LY = io[0x144], &BGP = io[0x147], &OBP0 = io[0x148], &OBP1 = io[0x149],
+    &WY = io[0x14a], &WX = io[0x14b], &IE = io[0x1ff], IME = 0, halt = 0;
 u16 U, &BC = (u16 &)R[0], &DE = (u16 &)R[2], &HL = (u16 &)R[4],
        &AF = (u16 &)R[6], &PC = (u16 &)R[8], &SP = (u16 &)R[10],
        *R16[] = {&BC, &DE, &HL, &SP}, *R162[] = {&BC, &DE, &HL, &AF},
        &DIV = (u16 &)io[0x103], dot = 0;
-s8 s;
+u32 fb[23040], pal[4]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000};
 u64 bcy, cy = 0;
 
 u8 r(u16 a) { cy+=4;
@@ -41,7 +43,7 @@ void w(u16 a, u8 x) { cy+=4;
 void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(Z<<7)|(N<<6)|(H<<5)|(C<<4); }
 u8 r8() { return r(PC++); }
 u16 r16() { u8 l=r8(),h=r8(); return (h<<8)|l; }
-void jr(bool b) { s=r8(); if(b) { PC+=s;cy+=4; } }
+void jr(bool b) { s8 s=r8(); if(b) { PC+=s;cy+=4; } }
 void jp(bool b) { u16 a=r16(); if(b) { PC=a;cy+=4; } }
 u16 pop() { u8 l=r(SP++), h=r(SP++); return (h<<8)|l; }
 void push(u16 x) { w(--SP,x>>8);w(--SP,x&255); cy+=4; }
@@ -72,6 +74,11 @@ int main(int argc, char** argv) {
   fread(rom0, 1, len, f);
   fclose(f);
   LCDC=0x91;DIV=0xac00;dot=32;
+  SDL_Init(SDL_INIT_EVERYTHING);
+  SDL_Window* Sw = SDL_CreateWindow("pokegb",100,100,160*5,144*5, SDL_WINDOW_SHOWN);
+  SDL_Renderer* Sr = SDL_CreateRenderer(Sw, -1, SDL_RENDERER_PRESENTVSYNC);
+  SDL_Texture *St = SDL_CreateTexture(Sr, SDL_PIXELFORMAT_RGBA32,
+                                      SDL_TEXTUREACCESS_STREAMING, 160, 144);
 
   while (true) {
     bcy=cy;
@@ -84,12 +91,14 @@ int main(int argc, char** argv) {
       u8 irqix=__builtin_ctz(IE&IF);IF&=~(1<<irqix);call(0x40+irqix*8);halt=IME=0;cy+=8;
     } else if (!halt) {
       op = r8();
+#if 0
       fprintf(stderr,
               "A:%02x F:%c%c%c%c BC:%04x DE:%04x HL:%04x SP:%04x [cy:%llu] "
               "ppu:%c LY:%u|%04x: %02x\n",
               A, F & 0x80 ? 'Z' : '-', F & 0x40 ? 'N' : '-',
               F & 0x20 ? 'H' : '-', F & 0x10 ? 'C' : '-', BC, DE, HL, SP,
               cy - 4, LCDC & 0x80 ? '+' : '-', LY, PC - 1, op);
+#endif
       switch (op) {
       case 0: break;
       OP4(0x01): *R16[op>>4]=r16(); break;
@@ -209,15 +218,48 @@ int main(int argc, char** argv) {
     } else { cy += 4; }
     DIV+=cy-bcy;
     for(;bcy<cy;++bcy) {
-      if (LCDC&0x80) {
+      if (LCDC&128) {
         ++dot;
-        switch (LY) {
-          case 144: if (dot==1) IF|=1; goto LINE;
-    LINE: default: if(dot==456) { LY=(LY+1)%154; dot=0; }break;
+        if (LY==144) { if (dot==1) IF|=1; }
+        if (dot == 456) {
+          if (LY < 144) {
+            for (int x = 0; x < 160; ++x) {
+              u16 base, tile;
+              u8 mx, my;
+              if ((LCDC&32)&&LY>=WY&&x>=WX-7) {
+                base=(LCDC&64)?0x1c00:0x1800;
+                mx=x-WX+7; my=LY-WY;
+              } else {
+                base=(LCDC&8)?0x1c00:0x1800;
+                mx=x+SCX; my=LY+SCY;
+              }
+              tile = vram[base+(my/8)*32+(mx/8)];
+              if (!(LCDC&16)) tile=256+(s8)tile;
+              u8* d=&vram[(tile*8+(my&7))*2];
+              u8 c=(((d[1]>>(7-(mx&7)))&1)<<1)|((d[0]>>(7-(mx&7)))&1);
+              fb[LY*160+x]=pal[(BGP>>(2*c))&3];
+            }
+          } else if (LY == 144) {
+            void* pixels; int pitch;
+            SDL_LockTexture(St, NULL, &pixels, &pitch);
+            for (int y = 0; y < 144; ++y)
+              memcpy((u8 *)pixels + y * pitch, &fb[y * 160], 640);
+            SDL_UnlockTexture(St);
+            SDL_RenderCopy(Sr, St, NULL, NULL);
+            SDL_RenderPresent(Sr);
+            SDL_Delay(0);
+            SDL_Event e;
+            while (SDL_PollEvent(&e)) {
+              if (e.type == SDL_QUIT) return 0;
+            }
+          }
+          LY = (LY + 1) % 154;
+          dot = 0;
         }
       } else {
         LY=dot=0;
       }
     }
   }
+  SDL_Quit();
 }

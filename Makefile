@@ -1,2 +1,2 @@
 pokegb: main.cc
-	$(CC) -g -o $@ $<
+	$(CC) -lSDL2 -g -o $@ $<
