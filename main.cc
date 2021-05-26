@@ -2,16 +2,18 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 using u8=uint8_t; using s8=int8_t; using u16=uint16_t; using u32=uint32_t; using u64=uint64_t;
-u8 op, u, fc, *rom0, *rom1, io[0x200], vram[0x2000], wram[0x4000], eram[0x8000],
-    *eram1 = eram, R[] = {19, 0, 216, 0, 77, 1, 176, 1, 0, 1, 254, 255},
-    &C = R[0], &B = R[1], &E = R[2], &D = R[3], &L = R[4], &H = R[5], &F = R[6],
-    &A = R[7], *R8[] = {&B, &C, &D, &E, &H, &L, &F, &A}, &JOY = io[0x100],
-    &IF = io[0x10f], &LCDC = io[0x140], &SCY = io[0x142], &SCX = io[0x143],
-    &LY = io[0x144], &BGP = io[0x147], &OBP0 = io[0x148], &OBP1 = io[0x149],
-    &WY = io[0x14a], &WX = io[0x14b], &IE = io[0x1ff], IME = 0, halt = 0;
+u8 op, u, fc, *rom0, *rom1, io[0x200], vram[0x2000], wram[0x4000], *eram, *eram1,
+    R[] = {19, 0, 216, 0, 77, 1, 176, 1, 0, 1, 254, 255}, &C = R[0], &B = R[1],
+    &E = R[2], &D = R[3], &L = R[4], &H = R[5], &F = R[6], &A = R[7],
+    *R8[] = {&B, &C, &D, &E, &H, &L, &F, &A}, &JOY = io[0x100], &IF = io[0x10f],
+    &LCDC = io[0x140], &SCY = io[0x142], &SCX = io[0x143], &LY = io[0x144],
+    &BGP = io[0x147], &OBP0 = io[0x148], &OBP1 = io[0x149], &WY = io[0x14a],
+    &WX = io[0x14b], &IE = io[0x1ff], IME = 0, halt = 0;
 u8 const *Sk;
 u16 U, &BC = (u16 &)R[0], &DE = (u16 &)R[2], &HL = (u16 &)R[4],
        &AF = (u16 &)R[6], &PC = (u16 &)R[8], &SP = (u16 &)R[10],
@@ -87,17 +89,14 @@ void swap(u8& r) { r=(r<<4)|(r>>4); FS(0,r==0,0,0,0); }
 
 int main(int argc, char** argv) {
   if (argc != 2) return 1;
-  FILE* f = fopen(argv[1], "rb");
-  fseek(f, 0, SEEK_END);
-  long len = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  rom1 = (rom0 = (u8*)malloc(len)) + 0x8000;
-  fread(rom0, 1, len, f);
-  fclose(f);
+  rom1 = (rom0 = (u8*)mmap(0,1048576,PROT_READ,MAP_SHARED,open(argv[1],O_RDONLY),0)) + 0x8000;
+  int sav = open("rom.sav",O_CREAT|O_RDWR,0666);
+  ftruncate(sav,32768);
+  eram1 = eram = (u8*)mmap(0,32768,PROT_READ|PROT_WRITE,MAP_SHARED,sav,0);
   LCDC=0x91;DIV=0xac00;dot=32;
   SDL_Init(SDL_INIT_EVERYTHING);
   SDL_Window* Sw = SDL_CreateWindow("pokegb",100,100,160*5,144*5, SDL_WINDOW_SHOWN);
-  SDL_Renderer* Sr = SDL_CreateRenderer(Sw, -1, SDL_RENDERER_PRESENTVSYNC);
+  SDL_Renderer* Sr = SDL_CreateRenderer(Sw, -1, 0/*SDL_RENDERER_PRESENTVSYNC*/);
   SDL_Texture *St = SDL_CreateTexture(Sr, SDL_PIXELFORMAT_RGBA32,
                                       SDL_TEXTUREACCESS_STREAMING, 160, 144);
   Sk = SDL_GetKeyboardState(NULL);
