@@ -11,12 +11,14 @@ u8 op, u, v, fc, *rom0, *rom1, io[512], vram[8192], wram[16384], *eram, *eram1,
     R[] = {19, 0, 216, 0, 77, 1, 176, 1, 254, 255}, &E = R[2], &D = R[3],
     &F = R[6], &A = R[7], *R8[] = {&R[1], &R[0], &D, &E, &R[5], &R[4], &F, &A},
     &IF = io[271], &LCDC = io[320], &LY = io[324], &WY = io[330], &WX = io[331],
-    &IE = io[511], IME = 0, halt = 0;
+    &IE = io[511], IME = 0, halt = 0, FM[] = {128, 128, 16, 16},
+    FE[] = {0, 128, 0, 16};
 u8 const *Sk;
 u16 PC = 256, U, &HL = (u16 &)R[4], &SP = (u16 &)R[8],
     *R16[] = {(u16 *)&R[0], (u16 *)&R[2], &HL, &SP},
     *R162[] = {(u16 *)&R[0], (u16 *)&R[2], &HL, (u16 *)&R[6]},
-    &DIV = (u16 &)io[259], dot = 32;
+    *R163[] = {(u16 *)&R[0], (u16 *)&R[2], &HL, &HL}, &DIV = (u16 &)io[259],
+    dot = 32;
 u32 fb[23040], pal[4]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000};
 u64 bcy, cy = 0;
 
@@ -79,32 +81,30 @@ int main(int argc, char** argv) {
 
   while (true) {
     bcy=cy;
-#define OP4(x) case x+0:case x+16:case x+32:case x+48
-#define OP7(x) case x+0:case x+1:case x+2:case x+3:case x+4:case x+5:case x+7
-#define OP7X(x) case x+0:case x+8:case x+16:case x+24:case x+32:case x+40:case x+56
-#define OP8X(x) case x+0:case x+8:case x+16:case x+24:case x+32:case x+40:case x+48:case x+56
-#define OP56(x) OP7(x):OP7(x+8):OP7(x+16):OP7(x+24):OP7(x+32):OP7(x+40):OP7(x+48):OP7(x+56)
+#define OP4(x) case x+0:case x+16:case x+32:case x+48:
+#define OP4F(x) case x+0:case x+8:case x+16:case x+24:
+#define OP7(x) case x+0:case x+1:case x+2:case x+3:case x+4:case x+5:case x+7:
+#define OP7X(x) OP4F(x)case x+32:case x+40:case x+56:
+#define OP8X(x) OP4F(x)OP4F(x+32)
+#define OP56(x) OP7(x)OP7(x+8)OP7(x+16)OP7(x+24)OP7(x+32)OP7(x+40)OP7(x+48)OP7(x+56)
+#define ALU(x) OP7(x)case x+6:case x+70:v=(op==x+6)?r(HL):(op==x+70)?r8():*R8[op&7];
+#define FCHK(x,y) OP4F(x)case y:fc=(op==y)||(F&FM[(op-x)/8])==FE[(op-x)/8];
     if (IME&IF&IE) { IF&=~1;halt=IME=0;cy+=8;fc=1;U=64;goto CALLU; }
     else if (!halt) switch ((op = r8())) {
       case 0: break;
-      OP4(0x01): *R16[op>>4]=r16(); break;
-      case 0x02: case 0x12: w(*R16[op>>4], A); break;
-      OP4(0x03): (*R16[op>>4])++; cy+=4; break;
-      OP7X(0x04): [](u8&r){++r;FS(16,r==0,0,(r&15)==0,0);}(*R8[op/8]); break;
-      OP7X(0x05): [](u8&r){--r;FS(16,r==0,1,(r&15)==15,0);}(*R8[op/8]); break;
-      OP7X(0x06): *R8[op/8]=r8(); break;
+      OP4(0x01) *R16[op>>4]=r16(); break;
+      OP4(0x02) w(*R163[op>>4], A); HL+=(op==0x22)?1:(op==0x32)?-1:0; break;
+      OP4(0x03) (*R16[op>>4])++; cy+=4; break;
+      OP7X(0x04) [](u8&r){++r;FS(16,r==0,0,(r&15)==0,0);}(*R8[op/8]); break;
+      OP7X(0x05) [](u8&r){--r;FS(16,r==0,1,(r&15)==15,0);}(*R8[op/8]); break;
+      OP7X(0x06) *R8[op/8]=r8(); break;
       case 0x07: fc=(A>>7);A=(A*2)|fc;FS(0,0,0,0,fc); break;
-      OP4(0x09): [](u16 x){FS(128,0,0,(HL&4095)+(x&4095)>4095,HL+x>65535);HL+=x;cy+=4;}(*R16[op>>4]); break;
+      OP4(0x09) [](u16 x){FS(128,0,0,(HL&4095)+(x&4095)>4095,HL+x>65535);HL+=x;cy+=4;}(*R16[op>>4]); break;
       case 0x0a: case 0x1a: A=r(*R16[op>>4]); break;
-      OP4(0x0b): (*R16[op>>4])--; cy+=4; break;
+      OP4(0x0b) (*R16[op>>4])--; cy+=4; break;
       case 0x0f: fc=A&1;A=(fc<<7)|(A/2);FS(0,0,0,0,fc); break;
       case 0x17: fc=A>>7;A=(A*2)|((F>>4)&1);FS(0,0,0,0,fc); break;
-      case 0x20: fc=!(F&128); goto JR;
-      case 0x28: fc=F&128; goto JR;
-      case 0x30: fc=!(F&16); goto JR;
-      case 0x38: fc=F&16; goto JR;
-      case 0x18: fc=1; JR: {s8 s=r8(); if(fc) { PC+=s;cy+=4; }} break;
-      case 0x22: w(HL++, A); break;
+      FCHK(0x20,0x18) {s8 s=r8(); if(fc) { PC+=s;cy+=4; }} break;
       case 0x27: fc=u=0;
         if ((F&32)||(!(F&64)&&(A&15)>9)) u=6;
         if ((F&16)||(!(F&64)&&A>153)) { u|=96;fc=1; }
@@ -113,92 +113,63 @@ int main(int argc, char** argv) {
         break;
       case 0x2a: A=r(HL++); break;
       case 0x2f: A=~A; FS(129,0,1,1,0); break;
-      case 0x32: w(HL--, A); break;
       case 0x34: u=r(HL)+1;FS(16,u==0,0,(u&15)==0,0);w(HL,u); break;
       case 0x35: u=r(HL)-1;FS(16,u==0,1,(u&15)==15,0);w(HL,u); break;
       case 0x36: w(HL,r8()); break;
       case 0x37: FS(128,0,0,0,1); break;
       case 0x3a: A=r(HL--); break;
       case 0x3f: FS(128,0,0,0,!(F&16)); break;
-      OP7X(0x46): *R8[(op-0x46)/8]=r(HL); break;
-      OP7(0x40): R[1]=*R8[op&7]; break;
-      OP7(0x48): R[0]=*R8[op&7]; break;
-      OP7(0x50): R[3]=*R8[op&7]; break;
-      OP7(0x58): R[2]=*R8[op&7]; break;
-      OP7(0x60): R[5]=*R8[op&7]; break;
-      OP7(0x68): R[4]=*R8[op&7]; break;
-      OP7(0x70): w(HL,*R8[op&7]); break;
+      OP7X(0x46) *R8[(op-0x46)/8]=r(HL); break;
+      OP7(0x40) R[1]=*R8[op&7]; break;
+      OP7(0x48) R[0]=*R8[op&7]; break;
+      OP7(0x50) R[3]=*R8[op&7]; break;
+      OP7(0x58) R[2]=*R8[op&7]; break;
+      OP7(0x60) R[5]=*R8[op&7]; break;
+      OP7(0x68) R[4]=*R8[op&7]; break;
+      OP7(0x70) w(HL,*R8[op&7]); break;
       case 0x76: halt=true; break;
-      OP7(0x78): A=*R8[op&7]; break;
-      OP7(0x80): fc=0;v=*R8[op&7]; goto ADD;
-      case 0x86: fc=0;v=r(HL); goto ADD;
-      case 0xc6: fc=0;v=r8(); goto ADD;
-      OP7(0x88): v=*R8[op&7]; goto ADC;
-      case 0x8e: v=r(HL); ADC: fc=(F>>4)&1; ADD: u=A+v+fc;FS(0,u==0,0,(A&15)+(v&15)+fc>15,A+v+fc>255);A=u; break;
-      OP7(0x90): fc=0;v=*R8[op&7]; goto SUB;
-      case 0x96: fc=0;v=r(HL); goto SUB;
-      case 0xd6: fc=0;v=r8(); goto SUB;
-      OP7(0x98): v=*R8[op&7];; goto SBC;
-      case 0x9e: v=r(HL); goto SBC;
-      case 0xde: v=r8(); SBC: fc=(F>>4)&1; SUB: u=A-v-fc;FS(0,u==0,1,(A&15)-(v&15)-fc<0,A-v-fc<0);A=u; break;
-      OP7(0xa0): v=*R8[op&7]; goto AND;
-      case 0xa6: v=r(HL); goto AND;
-      case 0xe6: v=r8(); AND: A&=v; FS(0,A==0,0,1,0); break;
-      OP7(0xa8): v=*R8[op&7]; goto XOR;
-      case 0xee: v=r8(); XOR: A^=v; FS(0,A==0,0,0,0); break;
-      OP7(0xb0): v=*R8[op&7]; goto OR;
-      case 0xb6: v=r(HL); goto OR;
-      case 0xf6: v=r8(); OR: A|=v; FS(0,A==0,0,0,0); break;
-      OP7(0xb8): v=*R8[op&7]; goto CP;
-      case 0xbe: v=r(HL); goto CP;
-      case 0xfe: v=r8(); CP: FS(0,A==v,1,(A&15)-(v&15)<0,A-v<0); break;
-      case 0xc0: fc=!(F&128); goto RET;
-      case 0xc8: fc=F&128; goto RET;
-      case 0xd0: fc=!(F&16); goto RET;
-      case 0xd8: fc=F&16; goto RET;
+      OP7(0x78) A=*R8[op&7]; break;
+      ALU(0x80) fc=0; goto ADD;
+      ALU(0x88) fc=(F>>4)&1; ADD: u=A+v+fc;FS(0,u==0,0,(A&15)+(v&15)+fc>15,A+v+fc>255);A=u; break;
+      ALU(0x90) fc=0; goto SUB;
+      ALU(0x98) fc=(F>>4)&1; SUB: u=A-v-fc;FS(0,u==0,1,(A&15)-(v&15)-fc<0,A-v-fc<0);A=u; break;
+      ALU(0xa0) A&=v; FS(0,A==0,0,1,0); break;
+      ALU(0xa8) A^=v; FS(0,A==0,0,0,0); break;
+      ALU(0xb0) A|=v; FS(0,A==0,0,0,0); break;
+      ALU(0xb8) FS(0,A==v,1,(A&15)-(v&15)<0,A-v<0); break;
       case 0xd9: fc=1;IME=31; goto RET;
-      case 0xc9: fc=1; RET: cy+=4; if (fc) PC=pop(); break;
-      OP4(0xc1): *R162[(op-0xc1)>>4]=pop(); break;
-      case 0xc2: fc=!(F&128); goto JP;
-      case 0xca: fc=F&128; goto JP;
-      case 0xd2: fc=!(F&16); goto JP;
-      case 0xda: fc=F&16; goto JP;
-      case 0xc3: fc=1; JP: U=r16(); if (fc) {PC=U;cy+=4;} break;
-      case 0xc4: fc=!(F&128); goto CALL;
-      case 0xcc: fc=F&128; goto CALL;
-      case 0xd4: fc=!(F&16); goto CALL;
-      case 0xdc: fc=F&16; goto CALL;
-      case 0xcd: fc=1; CALL: U=r16(); CALLU: if (fc) {push(PC);PC=U;} break;
-      OP4(0xc5): push(*R162[(op-0xc5)>>4]); break;
+      FCHK(0xc0,0xc9) RET: cy+=4; if (fc) PC=pop(); break;
+      OP4(0xc1) *R162[(op-0xc1)>>4]=pop(); break;
+      FCHK(0xc2,0xc3) U=r16(); if (fc) {PC=U;cy+=4;} break;
+      FCHK(0xc4,0xcd) U=r16(); CALLU: if (fc) {push(PC);PC=U;} break;
+      OP4(0xc5) push(*R162[(op-0xc5)>>4]); break;
       case 0xcb: switch((op=r8())) {
         case 0x07: fc=(A>>7)&1;A=(A*2)|fc;FS(0,A==0,0,0,fc); break;
         case 0x0b: fc=E&1;E=(fc<<7)|(E/2);FS(0,E==0,0,0,fc); break;
         case 0x0e: u=r(HL);fc=u&1;u=(fc<<7)|(u/2);FS(0,u==0,0,0,fc);w(HL,u); break;
-        OP7(0x10): [](u8&r){fc=r>>7;r=(r*2)|((F>>4)&1);FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
-        OP7(0x18): [](u8&r){fc=r&1;r=(r/2)|((F*8)&128);FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
-        OP7(0x20): [](u8&r){fc=(r>>7)&1;r*=2; FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
+        OP7(0x10) [](u8&r){fc=r>>7;r=(r*2)|((F>>4)&1);FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
+        OP7(0x18) [](u8&r){fc=r&1;r=(r/2)|((F*8)&128);FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
+        OP7(0x20) [](u8&r){fc=(r>>7)&1;r*=2; FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
         case 0x2a: fc=D&1;D=(s8)D>>1; FS(0,D==0,0,0,fc); break;
-        OP7(0x30): [](u8&r){r=(r*16)|(r>>4); FS(0,r==0,0,0,0);}(*R8[op&7]); break;
+        OP7(0x30) [](u8&r){r=(r*16)|(r>>4); FS(0,r==0,0,0,0);}(*R8[op&7]); break;
         case 0x36: u=r(HL);u=(u*16)|(u>>4); FS(0,u==0,0,0,0);w(HL,u); break;
-        OP7(0x38): [](u8&r){fc=r&1;r/=2; FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
-        OP8X(0x46): u=r(HL);v=1<<((op-0x46)/8); goto BITU;
-        OP56(0x40): v=1<<((op-0x40)/8); u=*R8[op&7]; BITU: FS(16,(u&v)==0,0,1,0); break;
-        OP8X(0x86): w(HL,r(HL)&~(1<<((op-0x86)/8))); break;
-        OP56(0x80): *R8[op&7]&=~(1<<((op-0x80)/8)); break;
-        OP8X(0xc6): w(HL,r(HL)|(1<<((op-0xc6)/8))); break;
-        OP56(0xc0): *R8[op&7]|=1<<((op-0xc0)/8); break;
+        OP7(0x38) [](u8&r){fc=r&1;r/=2; FS(0,r==0,0,0,fc);}(*R8[op&7]); break;
+        OP8X(0x46) u=r(HL);v=1<<((op-0x46)/8); goto BITU;
+        OP56(0x40) v=1<<((op-0x40)/8); u=*R8[op&7]; BITU: FS(16,(u&v)==0,0,1,0); break;
+        OP8X(0x86) w(HL,r(HL)&~(1<<((op-0x86)/8))); break;
+        OP56(0x80) *R8[op&7]&=~(1<<((op-0x80)/8)); break;
+        OP8X(0xc6) w(HL,r(HL)|(1<<((op-0xc6)/8))); break;
+        OP56(0xc0) *R8[op&7]|=1<<((op-0xc0)/8); break;
         default: goto BAD;
       } break;
-      case 0xe0: v=r8(); goto FF00;
-      case 0xe2: v=R[0]; FF00: w(65280|v,A); break;
+      case 0xe0: case 0xe2: v=(op==0xe0)?r8():R[0]; w(65280|v,A); break;
       case 0xe9: PC=HL; break;
       case 0xea: w(r16(),A); break;
       case 0xf0: A=r(65280|r8()); break;
-      case 0xf3: IME=0; break;
+      case 0xf3: case 0xfb: IME=(op==0xf3)?0:31; break;
       case 0xf8: u=r8();FS(0,0,0,(u8)SP+u>255,SP&15+u&15>15);HL=SP+(s8)u;cy+=4; break;
       case 0xf9: SP=HL;cy+=4; break;
       case 0xfa: A=r(r16()); break;
-      case 0xfb: IME=31; break;
  BAD: default:
         fprintf(stderr, "unknown opcode: @%04x: %02x\n", PC, op);
         abort();
