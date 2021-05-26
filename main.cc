@@ -12,6 +12,7 @@ u8 op, u, fc, *rom0, *rom1, io[0x200], vram[0x2000], wram[0x4000], eram[0x8000],
     &IF = io[0x10f], &LCDC = io[0x140], &SCY = io[0x142], &SCX = io[0x143],
     &LY = io[0x144], &BGP = io[0x147], &OBP0 = io[0x148], &OBP1 = io[0x149],
     &WY = io[0x14a], &WX = io[0x14b], &IE = io[0x1ff], IME = 0, halt = 0;
+u8 const *Sk;
 u16 U, &BC = (u16 &)R[0], &DE = (u16 &)R[2], &HL = (u16 &)R[4],
        &AF = (u16 &)R[6], &PC = (u16 &)R[8], &SP = (u16 &)R[10],
        *R16[] = {&BC, &DE, &HL, &SP}, *R162[] = {&BC, &DE, &HL, &AF},
@@ -25,7 +26,19 @@ u8 r(u16 a) { cy+=4;
     case 4: case 5: case 6: case 7: return rom1[a & 0x3fff];
     case 8: case 9: return vram[a & 0x1fff];
     case 10: case 11: return eram1[a & 0x1fff];
-    case 15: if (a >= 0xfe00) return io[a & 0x1ff];
+    case 15:
+      if (a >= 0xfe00) {
+        if (a == 0xff00) {
+          if (!(io[0x100]&16)) {
+            return ~(16|(Sk[81]<<3)|(Sk[82]<<2)|(Sk[80]<<1)|Sk[79]);
+          } else if (!(io[0x100]&32)) {
+            return ~(32|(Sk[40]<<3)|(Sk[43]<<2)|(Sk[29]<<1)|Sk[27]);
+          } else {
+            return 0xff;
+          }
+        }
+        return io[a & 0x1ff];
+      }
     case 12: case 13: case 14: return wram[a & 0x3fff];
   }
 }
@@ -34,7 +47,7 @@ void w(u16 a, u8 x) { cy+=4;
     default: case 0: case 1: /*ignore*/ break;
     case 2: case 3: rom1 = rom0 + ((x & 63) << 14); break;
     case 4: case 5: if (x <= 3) eram1 = eram + (x << 13); break;
-    case 6: case 7: fprintf(stderr, ">>> %04x<=%02x\n", a, x); abort();
+    case 6: case 7: /*ignore*/ break;
     case 8: case 9: vram[a & 0x1fff] = x; break;
     case 10: case 11: eram1[a & 0x1fff] = x; break;
     case 15:
@@ -85,6 +98,7 @@ int main(int argc, char** argv) {
   SDL_Renderer* Sr = SDL_CreateRenderer(Sw, -1, SDL_RENDERER_PRESENTVSYNC);
   SDL_Texture *St = SDL_CreateTexture(Sr, SDL_PIXELFORMAT_RGBA32,
                                       SDL_TEXTUREACCESS_STREAMING, 160, 144);
+  Sk = SDL_GetKeyboardState(NULL);
 
   while (true) {
     bcy=cy;
@@ -92,7 +106,6 @@ int main(int argc, char** argv) {
 #define OP7(x) case x+0:case x+1:case x+2:case x+3:case x+4:case x+5:case x+7
 #define OP7X(x) case x+0:case x+8:case x+16:case x+24:case x+32:case x+40:case x+56
 #define OP8X(x) case x+0:case x+8:case x+16:case x+24:case x+32:case x+40:case x+48:case x+56
-    JOY=0xff; 
     if (IME&IF&IE) {
       u8 irqix=__builtin_ctz(IE&IF);IF&=~(1<<irqix);call(0x40+irqix*8);halt=IME=0;cy+=8;
     } else if (!halt) {
@@ -202,6 +215,7 @@ int main(int argc, char** argv) {
       case 0xd8: cy+=4; if (F&0x10) goto RET; break;
       case 0xd9: IME=0x1f; goto RET;
       case 0xda: jp(F&0x10); break;
+      case 0xde: sbc(r8()); break;
       case 0xe0: w(0xff00|r8(),A); break;
       case 0xe2: w(0xff00|C,A); break;
       case 0xe6: _and(r8()); break;
@@ -268,9 +282,7 @@ int main(int argc, char** argv) {
             SDL_RenderPresent(Sr);
             SDL_Delay(0);
             SDL_Event e;
-            while (SDL_PollEvent(&e)) {
-              if (e.type == SDL_QUIT) return 0;
-            }
+            while (SDL_PollEvent(&e)) if (e.type == SDL_QUIT) return 0;
           }
           LY = (LY + 1) % 154;
           dot = 0;
@@ -280,5 +292,4 @@ int main(int argc, char** argv) {
       }
     }
   }
-  SDL_Quit();
 }
