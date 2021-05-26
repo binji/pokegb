@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -36,7 +37,12 @@ void w(u16 a, u8 x) { cy+=4;
     case 6: case 7: fprintf(stderr, ">>> %04x<=%02x\n", a, x); abort();
     case 8: case 9: vram[a & 0x1fff] = x; break;
     case 10: case 11: eram1[a & 0x1fff] = x; break;
-    case 15: if (a >= 0xfe00) { io[a & 0x1ff] = x; break; } // fallthrough
+    case 15:
+      if (a >= 0xfe00) {
+        if (a==0xff46) for(int i=0;i<160;++i) io[i]=r((x<<8)|i);
+        io[a & 0x1ff] = x;
+        break;
+      } // fallthrough
     case 12: case 13: case 14: wram[a & 0x3fff] = x; break;
   }
 }
@@ -220,7 +226,7 @@ int main(int argc, char** argv) {
     for(;bcy<cy;++bcy) {
       if (LCDC&128) {
         ++dot;
-        if (LY==144) { if (dot==1) IF|=1; }
+        if (dot== 1 && LY==144) IF|=1;
         if (dot == 456) {
           if (LY < 144) {
             for (int x = 0; x < 160; ++x) {
@@ -236,8 +242,21 @@ int main(int argc, char** argv) {
               tile = vram[base+(my/8)*32+(mx/8)];
               if (!(LCDC&16)) tile=256+(s8)tile;
               u8* d=&vram[(tile*8+(my&7))*2];
-              u8 c=(((d[1]>>(7-(mx&7)))&1)<<1)|((d[0]>>(7-(mx&7)))&1);
-              fb[LY*160+x]=pal[(BGP>>(2*c))&3];
+              u8 c=(((d[1]>>(7-(mx&7)))&1)<<1)|((d[0]>>(7-(mx&7)))&1),p=BGP;
+              if (LCDC&2) {
+                for (int i = 0; i < 40; ++i) {
+                  u8*o=&io[i*4], dx=x-o[1]+8,dy=LY-o[0]+16;
+                  assert(!(LCDC&4));
+                  if (dx<8&&dy<8) {
+                    if (o[3]&64) dy=7-dy;
+                    if (o[3]&32) dx=7-dx;
+                    d=&vram[(o[2]*8+dy)*2];
+                    u8 nc=(((d[1]>>(7-dx))&1)<<1)|((d[0]>>(7-dx))&1);
+                    if (!((o[3]&128)&&c)&&nc) { c=nc; p=o[3]&8?OBP1:OBP0; break; }
+                  }
+                }
+              }
+              fb[LY*160+x]=pal[(p>>(2*c))&3];
             }
           } else if (LY == 144) {
             void* pixels; int pitch;
