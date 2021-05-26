@@ -171,6 +171,7 @@ int main(int argc, char** argv) {
       OP7(0x90): sub(*R8[op&7]); break;
       case 0x96: sub(r(HL)); break;
       OP7(0x98): sbc(*R8[op&7]); break;
+      case 0x9e: sbc(r(HL)); break;
       OP7(0xa0): _and(*R8[op&7]); break;
       case 0xa6: _and(r(HL)); break;
       OP7(0xa8): _xor(*R8[op&7]); break;
@@ -189,6 +190,7 @@ int main(int argc, char** argv) {
  RET: case 0xc9: PC=pop(); cy+=4; break;
       case 0xca: jp(F&0x80); break;
       case 0xcb: switch((op=r8())) {
+        case 0x07: fc=(A>>7)&1;A=(A<<1)|fc;FS(0,A==0,0,0,fc); break;
         case 0x0b: fc=E&1;E=(fc<<7)|(E>>1);FS(0,E==0,0,0,fc); break;
         case 0x0e: u=r(HL);fc=u&1;u=(fc<<7)|(u>>1);FS(0,u==0,0,0,fc);w(HL,u); break;
         OP7(0x10): rl(*R8[op&7]); break;
