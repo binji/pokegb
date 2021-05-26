@@ -45,7 +45,7 @@ u8 r(u16 a) { cy+=4;
 void w(u16 a, u8 x) { cy+=4;
   switch (a >> 12) {
     default: case 0: case 1: /*ignore*/ break;
-    case 2: case 3: rom1 = rom0 + ((x & 63) << 14); break;
+    case 2: case 3: rom1 = rom0 + ((x?(x&63):1) << 14); break;
     case 4: case 5: if (x <= 3) eram1 = eram + (x << 13); break;
     case 6: case 7: /*ignore*/ break;
     case 8: case 9: vram[a & 0x1fff] = x; break;
