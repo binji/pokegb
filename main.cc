@@ -23,9 +23,9 @@ using z=uint8_t;using Z=uint16_t;using I=int;
 z o,m,u,x,c,n,*r0,*r1,i[512],v[8192],r4[16384],*r2,*r3,e[]={19,0,216,0,77,1,176,1,254,255},&F=e[6],&A=e[7],
 *e0[]={e+1,e,e+3,e+2,e+5,e+4,&F,&A},&IF=i[271],&O=i[320],&L=i[324],IM,h,*p;
 z const*J;
-Z P=256,U,*E=(Z*)e,&H=E[2],&S=E[4],&DI=(Z&)i[259],d=32,*M,*E0[]={E,E+1,&H,&S},*E1[]={E,E+1,&H,&H};
-uint32_t fb[23040],pal[]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000},C_,C;
-I s,t,HA[]={0,0,1,-1},FM[]={128,128,16,16},FE[]={0,128,0,16};
+Z P=256,U,*E=(Z*)e,&H=E[2],&S=E[4],&DI=(Z&)i[259],d=32,*M,*E0[]={E,E+1,&H,&S},*E1[]={E,E+1,&H,&H},C_,C;
+I s,t,HA[]={0,0,1,-1},FM[]={128,128,16,16},FE[]={0,128,0,16},fb[23040],j=-65536,l=-23197,q=-16777216,
+p_[]={-1,l,j,q,-1,-8092417,-12961132,q,-1,l,j,q};
 
 void T(){C+=4;}z me(Z a, z x, I w){T();switch(a>>12){Q 2:Q 3:if(w)r1=r0+((x?x&63:1)<<14);Q 0:Q 1:K r0[a];Q 4:Q 5:
 if(w&&x<=3)r3=r2+(x<<13);Q 6:Q 7: K r1[a&16383];Q 8:Q 9:a&=8191;if(w)v[a]=x;K v[a];Q 10:Q 11:a&=8191;if(w)
@@ -60,9 +60,9 @@ w(r()|(1<<m/8));B Y2(192)*p|=1<<m/8;B}B Q 224:Q 226:w(A,65280+(o==224?y():*e));B
 250:A=r(o==240?65280|y():Y());B Q 243:Q 251:IM=o!=243;B Q 248:u=y();f(0,1,0,(z)S+u>255,S%16+u%16>15);H=S+(int8_t)u;T();
 B Q 249:S=H;T();B}for(DI+=C-C_;C_++!=C;)if(O&128){if(++d==1&&L==144)IF|=1;if(d==456){if(L<144)for(s=160;--s
 >=0;){z w=O&32&&L>=i[330]&&s>=i[331]-7,mx=w?s-i[331]+7:s+i[323],my=w?L-i[330]:L+i[322];Z t=v[((O&(w?64:8)?7:
-6)<<10)+my/8*32+mx/8],p=327;mx=(mx^7)&7;z*d=&v[(O&16?t:256+(int8_t)t)*16+my%8*2],c=(d[1]>>mx)%2*2+(*d>>mx)%2
+6)<<10)+my/8*32+mx/8],p=0;mx=(mx^7)&7;z*d=&v[(O&16?t:256+(int8_t)t)*16+my%8*2],c=(d[1]>>mx)%2*2+(*d>>mx)%2
 ;if(O&2)for(z*o=i;o<i+160;o+=4){z dx=s-o[1]+8,dy=L-*o+16;if(dx<8&&dy<8){dx^=o[3]&32?0:7;d=&v[o[2]*16+(dy^(o[3]&64?
-7:0))*2];z g=(d[1]>>dx)%2*2+(*d>>dx)%2;if(!((o[3]&128)&&c)&&g){c=g;p+=1+!!(o[3]&8);B}}}fb[L*160+s]=pal[(i[p]>>(2*c))&
-3];}if(L==144){void*ps;SDL_LockTexture(St,0,&ps,&s);for(t=144;--t>=0;)memcpy((z*)ps+t*s,fb+t*160,640);SDL_UnlockTexture(
+7:0))*2];z g=(d[1]>>dx)%2*2+(*d>>dx)%2;if(!((o[3]&128)&&c)&&g){c=g;p+=1+!!(o[3]&8);B}}}fb[L*160+s]=p_[(i[327+p]>>(2*c))%4+p*4];}
+if(L==144){void*ps;SDL_LockTexture(St,0,&ps,&s);for(t=144;--t>=0;)memcpy((z*)ps+t*s,fb+t*160,640);SDL_UnlockTexture(
 St);SDL_RenderCopy(Sr,St,0,0);SDL_RenderPresent(Sr);SDL_Delay(0);SDL_Event e;while(SDL_PollEvent(&e))if(e.type==SDL_QUIT
 )K 0;}L=(L+1)%154;d=0;}}else L=d=0;}}
