@@ -5,6 +5,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#define OP4(x) case x:case x+16:case x+32:case x+48:
+#define OP4F(x) case x:case x+8:case x+16:case x+24:
+#define OP7(x) case x:case x+1:case x+2:case x+3:case x+4:case x+5:case x+7:p=R8[op&7];
+#define OP7X(x) OP4F(x)case x+32:case x+40:case x+56:p=R8[(op-x)/8];
+#define OP8X(x) OP4F(x)OP4F(x+32)
+#define OP56(x) OP8X(x)OP8X(x+1)OP8X(x+2)OP8X(x+3)OP8X(x+4)OP8X(x+5)OP8X(x+7)
+#define ALU(x) case x+6:case x+70:OP7(x)v=(op==x+6)?r(HL):(op==x+70)?r8():*p;
+#define FCHK(x,y) OP4F(x)case y:fc=(op==y)||(F&FM[(op-x)/8])==FE[(op-x)/8];
+
 using u8=uint8_t; using s8=int8_t; using u16=uint16_t; using u32=uint32_t; using u64=uint64_t;
 u8 op, u, v, fc, *rom0, *rom1, io[512], vram[8192], wram[16384], *eram, *eram1,
     R[] = {19, 0, 216, 0, 77, 1, 176, 1, 254, 255}, &F = R[6], &A = R[7],
@@ -19,7 +28,8 @@ u16 PC = 256, U, &HL = (u16 &)R[4], &SP = (u16 &)R[8],
 u32 fb[23040], pal[]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000};
 u64 bcy, cy = 0;
 
-u8 mem(u16 a, u8 x, int w) { cy+=4;
+void T() { cy+=4; }
+u8 mem(u16 a, u8 x, int w) { T();
   switch (a >> 12) {
     default: case 2 ... 3: if (w) rom1 = rom0 + ((x?(x&63):1) << 14);
     case 0 ... 1: return rom0[a];
@@ -49,7 +59,7 @@ void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(Z*128+N*64+H*32+C*16); }
 u8 r8() { return r(PC++); }
 u16 r16() { u=r8(); return r8()*256+u; }
 u16 pop() { u=r(SP++); return r(SP++)*256+u; }
-void push(u16 x) { w(--SP,x>>8);w(--SP,x&255); cy+=4; }
+void push(u16 x) { w(--SP,x>>8);w(--SP,x&255); T(); }
 
 int main() {
   rom1 = (rom0 = (u8*)mmap(0,1048576,PROT_READ,MAP_SHARED,open("rom.gb",O_RDONLY),0)) + 32768;
@@ -64,32 +74,25 @@ int main() {
                                       SDL_TEXTUREACCESS_STREAMING, 160, 144);
   Sk = SDL_GetKeyboardState(0);
 
-  while (true) {
+  while (1) {
     bcy=cy;
-#define OP4(x) case x:case x+16:case x+32:case x+48:
-#define OP4F(x) case x:case x+8:case x+16:case x+24:
-#define OP7(x) case x:case x+1:case x+2:case x+3:case x+4:case x+5:case x+7:p=R8[op&7];
-#define OP7X(x) OP4F(x)case x+32:case x+40:case x+56:p=R8[(op-x)/8];
-#define OP8X(x) OP4F(x)OP4F(x+32)
-#define OP56(x) OP8X(x)OP8X(x+1)OP8X(x+2)OP8X(x+3)OP8X(x+4)OP8X(x+5)OP8X(x+7)
-#define ALU(x) case x+6:case x+70:OP7(x)v=(op==x+6)?r(HL):(op==x+70)?r8():*p;
-#define FCHK(x,y) OP4F(x)case y:fc=(op==y)||(F&FM[(op-x)/8])==FE[(op-x)/8];
     if (IME&IF&IE) { IF&=~1;halt=IME=0;cy+=8;fc=1;U=64;goto CALLU; }
-    else if (!halt) switch ((op = r8())) {
+    else if (halt) T();
+    else switch ((op = r8())) {
       case 0: break;
       OP4(1) *R16[op>>4]=r16(); break;
       OP4(2) w(*R163[op>>4], A); HL+=(op==34)?1:(op==50)?-1:0; break;
-      OP4(3) (*R16[op>>4])++; cy+=4; break;
+      OP4(3) (*R16[op>>4])++; T(); break;
       OP7X(4) ++(*p);FS(16,!*p,0,!(*p&15),0); break;
       OP7X(5) --(*p);FS(16,!*p,1,(*p&15)==15,0); break;
       OP7X(6) *p=r8(); break;
       case 7: fc=A>>7;A+=A+fc;FS(0,0,0,0,fc); break;
-      OP4(9) P=R16[op>>4];FS(128,0,0,(HL&4095)+(*P&4095)>4095,HL+*P>65535);HL+=*P;cy+=4; break;
+      OP4(9) P=R16[op>>4];FS(128,0,0,(HL&4095)+(*P&4095)>4095,HL+*P>65535);HL+=*P;T(); break;
       OP4(10) A=r(*R163[op>>4]); HL+=(op==42)?1:(op==58)?-1:0; break;
-      OP4(11) (*R16[op>>4])--; cy+=4; break;
+      OP4(11) (*R16[op>>4])--; T(); break;
       case 15: fc=A&1;A=fc*128+A/2;FS(0,0,0,0,fc); break;
       case 23: fc=A>>7;A+=A+((F>>4)&1);FS(0,0,0,0,fc); break;
-      FCHK(32,24) u=r8(); if(fc) { PC+=(s8)u;cy+=4; } break;
+      FCHK(32,24) u=r8(); if(fc) { PC+=(s8)u;T(); } break;
       case 39: fc=u=0;
         if ((F&32)||(!(F&64)&&(A&15)>9)) u=6;
         if ((F&16)||(!(F&64)&&A>153)) { u|=96;fc=1; }
@@ -110,7 +113,7 @@ int main() {
       OP7(96) R[5]=*p; break;
       OP7(104) R[4]=*p; break;
       OP7(112) w(HL,*p); break;
-      case 118: halt=true; break;
+      case 118: halt=1; break;
       OP7(120) A=*p; break;
       ALU(128) fc=0; goto ADD;
       ALU(136) fc=(F>>4)&1; ADD: u=A+v+fc;FS(0,!u,0,(A&15)+(v&15)+fc>15,A+v+fc>255);A=u; break;
@@ -121,9 +124,9 @@ int main() {
       ALU(176) A|=v; FS(0,!A,0,0,0); break;
       ALU(184) FS(0,A==v,1,(A&15)-(v&15)<0,A-v<0); break;
       case 217: fc=1;IME=31; goto RET;
-      FCHK(192,201) RET: cy+=4; if (fc) PC=pop(); break;
+      FCHK(192,201) RET: T(); if (fc) PC=pop(); break;
       OP4(193) R162[(op-193)>>4]=pop(); break;
-      FCHK(194,195) U=r16(); if (fc) {PC=U;cy+=4;} break;
+      FCHK(194,195) U=r16(); if (fc) {PC=U;T();} break;
       FCHK(196,205) U=r16(); CALLU: if (fc) {push(PC);PC=U;} break;
       OP4(197) push(R162[(op-197)>>4]); break;
       case 203: switch((op=r8())) {
@@ -150,54 +153,40 @@ int main() {
       case 234: w(r16(),A); break;
       case 240: A=r(65280|r8()); break;
       case 243: case 251: IME=(op==243)?0:31; break;
-      case 248: u=r8();FS(0,0,0,(u8)SP+u>255,(SP&15)+(u&15)>15);HL=SP+(s8)u;cy+=4; break;
-      case 249: SP=HL;cy+=4; break;
+      case 248: u=r8();FS(0,0,0,(u8)SP+u>255,(SP&15)+(u&15)>15);HL=SP+(s8)u;T(); break;
+      case 249: SP=HL;T(); break;
       case 250: A=r(r16()); break;
  BAD: default:
         fprintf(stderr, "unknown opcode: @%04x: %02x\n", PC, op);
         abort();
         break;
-    } else { cy += 4; }
-    DIV+=cy-bcy;
-    for(;bcy<cy;++bcy) {
+    }
+    for(DIV+=cy-bcy;bcy++<cy;)
       if (LCDC&128) {
-        ++dot;
-        if (dot== 1 && LY==144) IF|=1;
-        if (dot == 456) {
-          if (LY < 144) {
-            for (int x = 0; x < 160; ++x) {
-              u16 base;
-              u8 mx, my;
-              if ((LCDC&32)&&LY>=WY&&x>=WX-7) {
-                base=(LCDC&64)?7168:6144;
-                mx=x-WX+7; my=LY-WY;
-              } else {
-                base=(LCDC&8)?7168:6144;
-                mx=x+io[323]; my=LY+io[322];
+        if (++dot==1&&LY==144) IF|=1;
+        if (dot==456) {
+          if (LY<144) for (int x=160;--x>=0;) {
+            u16 win=LCDC&32&&LY>=WY&&x>=WX-7, base=(LCDC&(win?64:8)?7:6)<<10;
+            u8 mx=win?x-WX+7:x+io[323], my=win?LY-WY:LY+io[322];
+            u16 tile=vram[base+my/8*32+mx/8],p=327;
+            mx=(mx^7)&7;
+            u8* d=&vram[(LCDC&16?tile:256+(s8)tile)*16+(my&7)*2];
+            u8 c=(d[1]>>mx)%2*2+(d[0]>>mx)%2;
+            if (LCDC&2) for (u8* o=io; o<io+160; o+=4) {
+              u8 dx=x-o[1]+8,dy=LY-o[0]+16;
+              if (dx<8&&dy<8) {
+                dx^=o[3]&32?0:7;
+                d=&vram[o[2]*16+(dy^(o[3]&64?7:0))*2];
+                u8 nc=(d[1]>>dx)%2*2+(d[0]>>dx)%2;
+                if (!((o[3]&128)&&c)&&nc) { c=nc; p+=1+!!(o[3]&8); break; }
               }
-              u16 tile = vram[base+(my/8)*32+(mx/8)];
-              if (!(LCDC&16)) tile=256+(s8)tile;
-              u8* d=&vram[(tile*8+(my&7))*2];
-              u8 c=(((d[1]>>(7-(mx&7)))&1)*2)|((d[0]>>(7-(mx&7)))&1),p=io[327];
-              if (LCDC&2) {
-                for (int i = 0; i < 40; ++i) {
-                  u8*o=&io[i*4], dx=x-o[1]+8,dy=LY-o[0]+16;
-                  if (dx<8&&dy<8) {
-                    if (o[3]&64) dy=7-dy;
-                    if (o[3]&32) dx=7-dx;
-                    d=&vram[(o[2]*8+dy)*2];
-                    u8 nc=(((d[1]>>(7-dx))&1)*2)|((d[0]>>(7-dx))&1);
-                    if (!((o[3]&128)&&c)&&nc) { c=nc; p=io[o[3]&8?329:328]; break; }
-                  }
-                }
-              }
-              fb[LY*160+x]=pal[(p>>(2*c))&3];
             }
-          } else if (LY == 144) {
+            fb[LY*160+x]=pal[(io[p]>>(2*c))&3];
+          }
+          if (LY==144) {
             void* pixels; int pitch;
             SDL_LockTexture(St, 0, &pixels, &pitch);
-            for (int y = 0; y < 144; ++y)
-              memcpy((u8 *)pixels + y * pitch, &fb[y * 160], 640);
+            for (int y=144;--y>=0;) memcpy((u8*)pixels+y*pitch, fb+y*160, 640);
             SDL_UnlockTexture(St);
             SDL_RenderCopy(Sr, St, 0, 0);
             SDL_RenderPresent(Sr);
@@ -205,12 +194,10 @@ int main() {
             SDL_Event e;
             while (SDL_PollEvent(&e)) if (e.type == SDL_QUIT) return 0;
           }
-          LY = (LY + 1) % 154;
-          dot = 0;
+          LY=(LY+1)%154; dot=0;
         }
       } else {
         LY=dot=0;
       }
-    }
   }
 }
