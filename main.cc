@@ -1,6 +1,5 @@
 #include <SDL2/SDL.h>
 #include <cstdint>
-#include <cstdio>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -26,38 +25,38 @@ u16 PC=256, U, *RR=(u16*)R, &HL=RR[2], &SP=RR[4],
     &DIV=(u16&)io[259], dot=32, *P;
 u32 fb[23040], pal[]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000};
 u64 bcy, cy=0;
+int HA[]={0,0,1,-1};
 
 void T() { cy+=4; }
 u8 mem(u16 a, u8 x, int w) { T();
-  switch (a >> 12) {
-    default: case 2 ... 3: if (w) rom1 = rom0 + ((x?(x&63):1) << 14);
+  switch (a>>12) {
+    default: case 2 ... 3: if (w) rom1=rom0+((x?(x&63):1)<<14);
     case 0 ... 1: return rom0[a];
-    case 4 ... 5: if (w && x <= 3) eram1 = eram + (x << 13);
-    case 6 ... 7: return rom1[a & 16383];
-    case 8 ... 9: a&=8191; if (w) vram[a] = x; return vram[a];
-    case 10 ... 11: a&=8191; if (w) eram1[a] = x; return eram1[a];
+    case 4 ... 5: if (w&&x<=3) eram1=eram+(x<<13);
+    case 6 ... 7: return rom1[a&16383];
+    case 8 ... 9: a&=8191; if (w) vram[a]=x; return vram[a];
+    case 10 ... 11: a&=8191; if (w) eram1[a]=x; return eram1[a];
     case 15:
       if (a >= 65024) {
         if (w) {
-          if (a==65350) for(int i=0;i<160;++i) io[i]=mem(x*256+i,0,0);
-          io[a & 511] = x;
+          if (a==65350) for(int i=160;--i>=0;) io[i]=mem(x*256+i,0,0);
+          io[a&511] = x;
         }
-        if (a == 65280) {
+        if (a==65280) {
           if (!(io[256]&16)) return ~(16+Sk[81]*8+(Sk[82]*4)+Sk[80]*2+Sk[79]);
           if (!(io[256]&32)) return ~(32+Sk[40]*8+Sk[43]*4+Sk[29]*2+Sk[27]);
           return 255;
         }
-        return io[a & 511];
+        return io[a&511];
       }
-    case 12 ... 14: a&=16383; if (w) wram[a] = x; return wram[a];
+    case 12 ... 14: a&=16383; if (w) wram[a]=x; return wram[a];
   }
 }
 u8 r(u16 a) { return mem(a,0,0); }
 void w(u16 a, u8 x) { mem(a,x,1); }
-void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(Z*128+N*64+H*32+C*16); }
+void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(!Z*128+N*64+H*32+C*16); }
 u8 r8() { return r(PC++); }
-u16 r16() { u=r8(); return r8()*256+u; }
-u16 pop() { u=r(SP++); return r(SP++)*256+u; }
+u16 r16(u16&R=PC) { u=r(R++); return r(R++)*256+u; }
 void push(u16 x) { w(--SP,x>>8);w(--SP,x); T(); }
 
 int main() {
@@ -75,34 +74,34 @@ int main() {
 
   while (1) {
     bcy=cy;
-    if (IME&IF&IE) { IF&=~1;halt=IME=0;cy+=8;fc=1;U=64;goto CALLU; }
+    if (IME&IF&IE) { IF=halt=IME=0;cy+=8;fc=1;U=64;goto CALLU; }
     else if (halt) T();
     else switch ((op = r8())) {
       case 0: break;
       OP4(1) *R16[op>>4]=r16(); break;
-      OP4(2) w(*R163[op>>4], A); HL+=(op==34)?1:(op==50)?-1:0; break;
+      OP4(2) w(*R163[op>>4], A); HL+=HA[(op-2)/16]; break;
       OP4(3) (*R16[op>>4])++; T(); break;
-      OP7X(4) ++(*p);FS(16,!*p,0,!(*p&15),0); break;
-      OP7X(5) --(*p);FS(16,!*p,1,(*p&15)==15,0); break;
+      OP7X(4) ++(*p);FS(16,*p,0,!(*p&15),0); break;
+      OP7X(5) --(*p);FS(16,*p,1,(*p&15)==15,0); break;
       OP7X(6) *p=r8(); break;
-      case 7: A+=A+(fc=A>>7);FS(0,0,0,0,fc); break;
-      OP4(9) P=R16[op>>4];FS(128,0,0,(HL&4095)+(*P&4095)>4095,HL+*P>65535);HL+=*P;T(); break;
-      OP4(10) A=r(*R163[op>>4]); HL+=(op==42)?1:(op==58)?-1:0; break;
+      case 7: A+=A+(fc=A>>7);FS(0,1,0,0,fc); break;
+      OP4(9) P=R16[op>>4];FS(128,1,0,HL%4096+*P%4096>4095,HL+*P>65535);HL+=*P;T(); break;
+      OP4(10) A=r(*R163[op>>4]); HL+=HA[(op-10)/16]; break;
       OP4(11) (*R16[op>>4])--; T(); break;
-      case 15: A=(fc=A&1)*128+A/2;FS(0,0,0,0,fc); break;
-      case 23: fc=A>>7;A+=A+((F>>4)&1);FS(0,0,0,0,fc); break;
+      case 15: A=(fc=A&1)*128+A/2;FS(0,1,0,0,fc); break;
+      case 23: fc=A>>7;A+=A+(F>>4)%2;FS(0,1,0,0,fc); break;
       FCHK(32,24) u=r8(); if(fc) PC+=(s8)u,T(); break;
       case 39: fc=u=0;
-        if (F&32||(!(F&64)&&(A&15)>9)) u=6;
+        if (F&32||(!(F&64)&&A%15>9)) u=6;
         if (F&16||(!(F&64)&&A>153)) u|=96,fc=1;
-        FS(65,!(A+=(F&64)?-u:u),0,0,fc);
+        FS(65,A+=(F&64)?-u:u,0,0,fc);
         break;
-      case 47: A=~A; FS(129,0,1,1,0); break;
-      case 52: u=r(HL)+1;FS(16,!u,0,!(u&15),0);w(HL,u); break;
-      case 53: u=r(HL)-1;FS(16,!u,1,(u&15)==15,0);w(HL,u); break;
+      case 47: A=~A; FS(129,1,1,1,0); break;
+      case 52: u=r(HL)+1;FS(16,u,0,!(u&15),0);w(HL,u); break;
+      case 53: u=r(HL)-1;FS(16,u,1,u%16==15,0);w(HL,u); break;
       case 54: w(HL,r8()); break;
-      case 55: FS(128,0,0,0,1); break;
-      case 63: FS(128,0,0,0,!(F&16)); break;
+      case 55: FS(128,1,0,0,1); break;
+      case 63: FS(128,1,0,0,!(F&16)); break;
       OP7X(70) *p=r(HL); break;
       OP7(64) R[1]=*p; break;
       OP7(72) R[0]=*p; break;
@@ -114,50 +113,47 @@ int main() {
       case 118: halt=1; break;
       OP7(120) A=*p; break;
       ALU(128) fc=0; goto ADD;
-      ALU(136) fc=(F>>4)&1; ADD: u=A+v+fc;FS(0,!u,0,(A&15)+(v&15)+fc>15,A+v+fc>255);A=u; break;
+      ALU(136) fc=(F>>4)&1; ADD: FS(0,u=A+v+fc,0,A%16+v%16+fc>15,A+v+fc>255);A=u; break;
       ALU(144) fc=0; goto SUB;
-      ALU(152) fc=(F>>4)&1; SUB: u=A-v-fc;FS(0,!u,1,(A&15)-(v&15)-fc<0,A-v-fc<0);A=u; break;
-      ALU(160) FS(0,!(A&=v),0,1,0); break;
-      ALU(168) FS(0,!(A^=v),0,0,0); break;
-      ALU(176) FS(0,!(A|=v),0,0,0); break;
-      ALU(184) FS(0,A==v,1,(A&15)-(v&15)<0,A-v<0); break;
+      ALU(152) fc=(F>>4)&1; SUB: FS(0,u=A-v-fc,1,A%16<v%16+fc,A<v+fc);A=u; break;
+      ALU(160) FS(0,A&=v,0,1,0); break;
+      ALU(168) FS(0,A^=v,0,0,0); break;
+      ALU(176) FS(0,A|=v,0,0,0); break;
+      ALU(184) FS(0,A!=v,1,A%16<v%16,A<v); break;
       case 217: fc=IME=1; goto RET;
-      FCHK(192,201) RET: T(); if (fc) PC=pop(); break;
-      OP4(193) RR[(op-193)>>4]=pop(); break;
+      FCHK(192,201) RET: T(); if (fc) PC=r16(SP); break;
+      OP4(193) RR[(op-193)>>4]=r16(SP); break;
       FCHK(194,195) U=r16(); if (fc) PC=U,T(); break;
       FCHK(196,205) U=r16(); CALLU: if (fc) push(PC),PC=U; break;
       OP4(197) push(RR[(op-197)>>4]); break;
       case 203: switch((op=r8())) {
-        case 7: A+=A+(fc=(A>>7)&1);FS(0,!A,0,0,fc); break;
-        OP7(8) *p=(fc=*p&1)*128+*p/2;FS(0,!*p,0,0,fc); break;
-        case 14: u=r(HL);fc=u&1;u=fc*128+u/2;FS(0,!u,0,0,fc);w(HL,u); break;
-        OP7(16) fc=*p>>7;FS(0,!(*p=*p*2+((F>>4)&1)),0,0,fc); break;
-        OP7(24) fc=*p&1;FS(0,!(*p=*p/2+((F*8)&128)),0,0,fc); break;
-        OP7(32) fc=(*p>>7)&1;FS(0,!(*p*=2),0,0,fc); break;
-        OP7(40) fc=*p&1;FS(0,!(*p=(s8)*p>>1),0,0,fc); break;
-        OP7(48) FS(0,!(*p=*p*16+*p/16),0,0,0); break;
-        case 54: u=r(HL);FS(0,!(u=u*16+u/16),0,0,0);w(HL,u); break;
-        OP7(56) fc=*p&1;FS(0,!(*p/=2),0,0,fc); break;
+        case 7: A+=A+(fc=(A>>7)&1);FS(0,A,0,0,fc); break;
+        OP7(8) *p=(fc=*p&1)*128+*p/2;FS(0,*p,0,0,fc); break;
+        case 14: u=r(HL);fc=u&1;u=fc*128+u/2;FS(0,u,0,0,fc);w(HL,u); break;
+        OP7(16) fc=*p>>7;FS(0,*p=*p*2+(F>>4)%2,0,0,fc); break;
+        OP7(24) fc=*p&1;FS(0,*p=*p/2+((F*8)&128),0,0,fc); break;
+        OP7(32) fc=(*p>>7)&1;FS(0,*p*=2,0,0,fc); break;
+        OP7(40) fc=*p&1;FS(0,*p=(s8)*p>>1,0,0,fc); break;
+        OP7(48) FS(0,*p=*p*16+*p/16,0,0,0); break;
+        case 54: u=r(HL);FS(0,u=u*16+u/16,0,0,0);w(HL,u); break;
+        OP7(56) fc=*p&1;FS(0,*p/=2,0,0,fc); break;
         OP8X(70) u=r(HL); goto BITU;
-        OP56(64) u=*R8[op&7]; BITU: FS(16,!(u&(1<<((op-64)/8))),0,1,0); break;
+        OP56(64) u=*R8[op&7]; BITU: FS(16,u&(1<<((op-64)/8)),0,1,0); break;
         OP8X(134) w(HL,r(HL)&~(1<<((op-134)/8))); break;
         OP56(128) *R8[op&7]&=~(1<<((op-128)/8)); break;
         OP8X(198) w(HL,r(HL)|(1<<((op-198)/8))); break;
         OP56(192) *R8[op&7]|=1<<((op-192)/8); break;
-        default: goto BAD;
+        default: return op;
       } break;
       case 224: case 226: w(65280+(op==224?r8():R[0]),A); break;
       case 233: PC=HL; break;
       case 234: w(r16(),A); break;
       case 240: A=r(65280|r8()); break;
       case 243: case 251: IME=op!=243; break;
-      case 248: u=r8();FS(0,0,0,(u8)SP+u>255,(SP&15)+(u&15)>15);HL=SP+(s8)u;T(); break;
+      case 248: u=r8();FS(0,1,0,(u8)SP+u>255,SP%16+u%16>15);HL=SP+(s8)u;T(); break;
       case 249: SP=HL;T(); break;
       case 250: A=r(r16()); break;
- BAD: default:
-        fprintf(stderr, "unknown opcode: @%04x: %02x\n", PC, op);
-        abort();
-        break;
+      default: return op;
     }
     for(DIV+=cy-bcy;bcy++<cy;)
       if (LCDC&128) {
@@ -190,7 +186,7 @@ int main() {
             SDL_RenderPresent(Sr);
             SDL_Delay(0);
             SDL_Event e;
-            while (SDL_PollEvent(&e)) if (e.type == SDL_QUIT) return 0;
+            while (SDL_PollEvent(&e)) if (e.type==SDL_QUIT) return 0;
           }
           LY=(LY+1)%154; dot=0;
         }
