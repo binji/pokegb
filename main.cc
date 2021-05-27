@@ -12,7 +12,7 @@
 #define Y7P(x) Y7(x)p=R8[(op-x)/8];
 #define Y49(x) Y7(x)Y7(x+1)Y7(x+2)Y7(x+3)Y7(x+4)Y7(x+5)Y7(x+7)om=op-x;
 #define Y56(x) Y49(x)X7(x+48)om=op-x;
-#define A9(x) case x+6:case x+70:X7(x)v=(op==x+6)?r(HL):(op==x+70)?r8():*p;
+#define A9(x) case x+6:case x+70:X7(x)v=(op==x+6)?r():(op==x+70)?r8():*p;
 #define F5(x,y) Y4(x)case y:fc=(op==y)||(F&FM[(op-x)/8])==FE[(op-x)/8];
 
 using u8=uint8_t; using u16=uint16_t;
@@ -29,7 +29,7 @@ int HA[]={0,0,1,-1}, FM[]={128,128,16,16}, FE[]={0,128,0,16};
 void T() { cy+=4; }
 u8 mem(u16 a, u8 x, int w) { T();
   switch (a>>12) {
-    default: case 2:case 3: if (w) rom1=rom0+((x?(x&63):1)<<14);
+    default: case 2:case 3: if (w) rom1=rom0+((x?x&63:1)<<14);
     case 0:case 1: return rom0[a];
     case 4:case 5: if (w&&x<=3) eram1=eram+(x<<13);
     case 6:case 7: return rom1[a&16383];
@@ -51,12 +51,12 @@ u8 mem(u16 a, u8 x, int w) { T();
     case 12 ... 14: a&=16383; if (w) wram[a]=x; return wram[a];
   }
 }
-u8 r(u16 a) { return mem(a,0,0); }
-void w(u16 a, u8 x) { mem(a,x,1); }
+u8 r(u16 a=HL) { return mem(a,0,0); }
+void w(u8 x,u16 a=HL) { mem(a,x,1); }
 void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(!Z*128+N*64+H*32+C*16); }
 u8 r8() { return r(PC++); }
 u16 r16(u16&R=PC) { u=r(R++); return r(R++)*256+u; }
-void push(u16 x) { w(--SP,x>>8);w(--SP,x); T(); }
+void push(u16 x) { w(x>>8,--SP);w(x,--SP); T(); }
 
 int main() {
   rom1 = (rom0 = (u8*)mmap(0,1048576,PROT_READ,MAP_SHARED,open("rom.gb",O_RDONLY),0)) + 32768;
@@ -78,19 +78,19 @@ int main() {
     else switch ((op = r8())) {
       case 0: break;
       W4(1) *RR2[op>>4]=r16(); break;
-      W4(2) w(*RR3[op>>4], A); HL+=HA[om/16]; break;
+      W4(2) w(A,*RR3[op>>4]); HL+=HA[om/16]; break;
       W4(3) (*RR2[op>>4])++; T(); break;
       Y7P(4) u=++(*p); goto INC;
-      case 52: w(HL,u=r(HL)+1); INC: FS(16,u,0,!(u&15),0); break;
+      case 52: w(u=r()+1); INC: FS(16,u,0,!(u&15),0); break;
       Y7P(5) u=--(*p); goto DEC;
-      case 53: w(HL,u=r(HL)-1); DEC: FS(16,u,1,u%16==15,0); break;
+      case 53: w(u=r()-1); DEC: FS(16,u,1,u%16==15,0); break;
       Y7P(6) *p=r8(); break;
       case 7: A+=A+(fc=A>>7); goto FL;
       W4(9) P=RR2[op>>4];FS(128,1,0,HL%4096+*P%4096>4095,HL+*P>65535);HL+=*P;T(); break;
       W4(10) A=r(*RR3[op>>4]); HL+=HA[om/16]; break;
       W4(11) (*RR2[op>>4])--; T(); break;
       case 15: A=(fc=A&1)*128+A/2; goto FL;
-      case 23: fc=A>>7;A+=A+(F>>4)%2; FL: FS(0,1,0,0,fc); break;
+      case 23: fc=A>>7;A+=A+F/16%2; FL: FS(0,1,0,0,fc); break;
       F5(32,24) u=r8(); if(fc) PC+=(int8_t)u,T(); break;
       case 39: fc=u=0;
         if (F&32||(!(F&64)&&A%15>9)) u=6;
@@ -98,16 +98,16 @@ int main() {
         FS(65,A+=(F&64)?-u:u,0,0,fc);
         break;
       case 47: A=~A; FS(129,1,1,1,0); break;
-      case 54: w(HL,r8()); break;
+      case 54: w(r8()); break;
       case 55:case 63: FS(128,1,0,0,op==55?1:!(F&16)); break;
-      Y7P(70) *p=r(HL); break;
+      Y7P(70) *p=r(); break;
       Y49(64) *R8[om/8]=*R8[op&7]; break;
-      X7(112) w(HL,*p); break;
+      X7(112) w(*p); break;
       case 118: halt=1; break;
       A9(128) fn=fc=0; goto ALU;
-      A9(136) fn=0;fc=(F>>4)&1; goto ALU;
+      A9(136) fn=0;fc=F/16%2; goto ALU;
       A9(144) fc=1; goto SUB;
-      A9(152) fc=!((F>>4)&1); SUB: fn=1;v=~v; ALU: FS(0,u=A+v+fc,fn,(A%16+v%16+fc>15)^fn,(A+v+fc>255)^fn);A=u; break;
+      A9(152) fc=!(F/16%2); SUB: fn=1;v=~v; ALU: FS(0,u=A+v+fc,fn,(A%16+v%16+fc>15)^fn,(A+v+fc>255)^fn);A=u; break;
       A9(160) FS(0,A&=v,0,1,0); break;
       A9(168) FS(0,A^=v,0,0,0); break;
       A9(176) FS(0,A|=v,0,0,0); break;
@@ -119,27 +119,27 @@ int main() {
       F5(196,205) U=r16(); CALLU: if (fc) push(PC),PC=U; break;
       W4(197) push(RR[om>>4]); break;
       case 203: switch((op=r8())) {
-        X7(0) *p+=*p+(fc=(*p>>7)&1); goto FC;
+        X7(0) *p+=*p+(fc=*p/128%2); goto FC;
         X7(8) *p=(fc=*p&1)*128+*p/2; goto FC;
-        case 14: u=r(HL);fc=u&1;u=fc*128+u/2;w(HL,u);FS(0,u,0,0,fc); break;
-        X7(16) fc=*p>>7;*p=*p*2+(F>>4)%2; goto FC;
+        case 14: u=r();fc=u&1;w(u=fc*128+u/2); goto FU;
+        X7(16) fc=*p>>7;*p=*p*2+F/16%2; goto FC;
         X7(24) fc=*p&1;*p=*p/2+((F*8)&128); goto FC;
-        X7(32) fc=(*p>>7)&1;*p*=2; goto FC;
+        X7(32) fc=*p/128%2;*p*=2; goto FC;
         X7(40) fc=*p&1;*p=(int8_t)*p>>1; goto FC;
         X7(48) FS(0,*p=*p*16+*p/16,0,0,0); break;
-        case 54: u=r(HL);FS(0,u=u*16+u/16,0,0,0);w(HL,u); break;
+        case 54: u=r();fc=0;w(u=u*16+u/16); FU: FS(0,u,0,0,fc); break;
         X7(56) fc=*p&1;*p/=2; FC: FS(0,*p,0,0,fc); break;
-        Y8(70) u=r(HL); goto BITU;
+        Y8(70) u=r(); goto BITU;
         Y56(64) u=*p; BITU: FS(16,u&(1<<om/8),0,1,0); break;
-        Y8(134) w(HL,r(HL)&~(1<<om/8)); break;
+        Y8(134) w(r()&~(1<<om/8)); break;
         Y56(128) *p&=~(1<<om/8); break;
-        Y8(198) w(HL,r(HL)|(1<<om/8)); break;
+        Y8(198) w(r()|(1<<om/8)); break;
         Y56(192) *p|=1<<om/8; break;
         default: return op;
       } break;
-      case 224:case 226: w(65280+(op==224?r8():*R),A); break;
+      case 224:case 226: w(A,65280+(op==224?r8():*R)); break;
       case 233: PC=HL; break;
-      case 234: w(r16(),A); break;
+      case 234: w(A,r16()); break;
       case 240:case 250: A=r(op==240?65280|r8():r16()); break;
       case 243:case 251: IME=op!=243; break;
       case 248: u=r8();FS(0,1,0,(u8)SP+u>255,SP%16+u%16>15);HL=SP+(int8_t)u;T(); break;
