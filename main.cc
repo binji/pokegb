@@ -4,185 +4,65 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#define W4(x) case x:case x+16:case x+32:case x+48:om=op-x;
-#define Y4(x) case x:case x+8:case x+16:case x+24:
-#define X7(x) case x:case x+1:case x+2:case x+3:case x+4:case x+5:case x+7:p=R8[op&7];
-#define Y7(x) Y4(x)case x+32:case x+40:case x+56:
-#define Y8(x) Y4(x)Y4(x+32)om=op-x;
-#define Y7P(x) Y7(x)p=R8[(op-x)/8];
-#define Y49(x) Y7(x)Y7(x+1)Y7(x+2)Y7(x+3)Y7(x+4)Y7(x+5)Y7(x+7)om=op-x;
-#define Y56(x) Y49(x)X7(x+48)om=op-x;
-#define A9(x) case x+6:case x+70:X7(x)v=(op==x+6)?r():(op==x+70)?r8():*p;
-#define F5(x,y) Y4(x)case y:fc=(op==y)||(F&FM[(op-x)/8])==FE[(op-x)/8];
+#define G goto
+#define Q case
+#define B break;
+#define K return
+#define Y1(_)V(_)p=e0[(o-_)/8];
+#define Y2(_)Y4(_)X(_+48)m=o-_;
+#define Y0(_)Y3(_)Y3(_+32)m=o-_;
+#define Y3(_)Q _:Q _+8:Q _+16:Q _+24:
+#define V(_)Y3(_)Q _+32:Q _+40:Q _+56:
+#define W(_)Q _:Q _+16:Q _+32:Q _+48:m=o-_;
+#define Y4(_)V(_)V(_+1)V(_+2)V(_+3)V(_+4)V(_+5)V(_+7)m=o-_;
+#define D(_)Q _+6:Q _+70:X(_)x=(o==_+6)?r():(o==_+70)?y():*p;
+#define X(_)Q _:Q _+1:Q _+2:Q _+3:Q _+4:Q _+5:Q _+7:p=e0[o&7];
+#define Y5(_,y)Y3(_)Q y:c=(o==y)||(F&FM[(o-_)/8])==FE[(o-_)/8];
 
-using u8=uint8_t; using u16=uint16_t;
-u8 op, om, u, v, fc, fn, *rom0, *rom1, io[512], vram[8192], wram[16384], *eram,
-    *eram1, R[]={19,0,216,0,77,1,176,1,254,255}, &F=R[6], &A=R[7],
-    *R8[]={R+1,R,R+3,R+2,R+5,R+4,&F,&A}, &IF=io[271],
-    &LCDC=io[320], &LY=io[324], IME=0, halt=0, *p;
-u8 const *Sk;
-u16 PC=256, U, *RR=(u16*)R, &HL=RR[2], &SP=RR[4], &DIV=(u16&)io[259], dot=32, *P,
-    *RR2[]={RR,RR+1,&HL,&SP}, *RR3[]={RR,RR+1,&HL,&HL};
-uint32_t fb[23040], pal[]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000}, bcy, cy=0;
-int HA[]={0,0,1,-1}, FM[]={128,128,16,16}, FE[]={0,128,0,16};
+using z=uint8_t;using Z=uint16_t;using I=int;
+z o,m,u,x,c,n,*r0,*r1,i[512],v[8192],r4[16384],*r2,*r3,e[]={19,0,216,0,77,1,176,1,254,255},&F=e[6],&A=e[7],
+*e0[]={e+1,e,e+3,e+2,e+5,e+4,&F,&A},&IF=i[271],&O=i[320],&L=i[324],IM,h,*p;
+z const*J;
+Z P=256,U,*E=(Z*)e,&H=E[2],&S=E[4],&DI=(Z&)i[259],d=32,*M,*E0[]={E,E+1,&H,&S},*E1[]={E,E+1,&H,&H};
+uint32_t fb[23040],pal[]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000},C_,C;
+I s,t,HA[]={0,0,1,-1},FM[]={128,128,16,16},FE[]={0,128,0,16};
 
-void T() { cy+=4; }
-u8 mem(u16 a, u8 x, int w) { T();
-  switch (a>>12) {
-    default: case 2:case 3: if (w) rom1=rom0+((x?x&63:1)<<14);
-    case 0:case 1: return rom0[a];
-    case 4:case 5: if (w&&x<=3) eram1=eram+(x<<13);
-    case 6:case 7: return rom1[a&16383];
-    case 8:case 9: a&=8191; if (w) vram[a]=x; return vram[a];
-    case 10:case 11: a&=8191; if (w) eram1[a]=x; return eram1[a];
-    case 15:
-      if (a >= 65024) {
-        if (w) {
-          if (a==65350) for(int i=160;--i>=0;) io[i]=mem(x*256+i,0,0);
-          io[a&511] = x;
-        }
-        if (a==65280) {
-          if (!(io[256]&16)) return ~(16+Sk[81]*8+Sk[82]*4+Sk[80]*2+Sk[79]);
-          if (!(io[256]&32)) return ~(32+Sk[40]*8+Sk[43]*4+Sk[29]*2+Sk[27]);
-          return 255;
-        }
-        return io[a&511];
-      }
-    case 12 ... 14: a&=16383; if (w) wram[a]=x; return wram[a];
-  }
-}
-u8 r(u16 a=HL) { return mem(a,0,0); }
-void w(u8 x,u16 a=HL) { mem(a,x,1); }
-void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(!Z*128+N*64+H*32+C*16); }
-u8 r8() { return r(PC++); }
-u16 r16(u16&R=PC) { u=r(R++); return r(R++)*256+u; }
-void push(u16 x) { w(x>>8,--SP);w(x,--SP); T(); }
+void T(){C+=4;}z me(Z a, z x, I w){T();switch(a>>12){Q 2:Q 3:if(w)r1=r0+((x?x&63:1)<<14);Q 0:Q 1:K r0[a];Q 4:Q 5:
+if(w&&x<=3)r3=r2+(x<<13);Q 6:Q 7: K r1[a&16383];Q 8:Q 9:a&=8191;if(w)v[a]=x;K v[a];Q 10:Q 11:a&=8191;if(w)
+r3[a]=x;K r3[a];Q 15:if(a>=65024){if(w){if(a==65350)for(I y=160;--y>=0;)i[y]=me(x*256+y,0,0);i[a&511]=x;}if(a==
+65280){if(!(i[256]&16))K~(16+J[81]*8+J[82]*4+J[80]*2+J[79]);if(!(i[256]&32))K~(32+J[40]*8+J[43]*4+J[29]*2+J[27]);K 255;}
+K i[a&511];}Q 12 ...14:a&=16383;if(w)r4[a]=x;K r4[a];}}z r(Z a=H){K me(a,0,0);}void w(z x,Z a=H){me(a,x,1);}void f
+(z M,I Z,I N,I H,I C){F=(F&M)|(!Z*128+N*64+H*32+C*16);}z y(){K r(P++);}Z Y(Z&x=P){u=r(x++);K r(x++)*256+u;}void ph(Z x
+){w(x>>8,--S);w(x,--S);T();}
 
-int main() {
-  rom1 = (rom0 = (u8*)mmap(0,1048576,PROT_READ,MAP_SHARED,open("rom.gb",O_RDONLY),0)) + 32768;
-  int sav = open("rom.sav",O_CREAT|O_RDWR,0666);
-  ftruncate(sav,32768);
-  eram1 = eram = (u8*)mmap(0,32768,PROT_READ|PROT_WRITE,MAP_SHARED,sav,0);
-  LCDC=145;DIV=44032;
-  SDL_Init(SDL_INIT_EVERYTHING);
-  SDL_Window* Sw = SDL_CreateWindow("pokegb",0,0,800,720, SDL_WINDOW_SHOWN);
-  SDL_Renderer* Sr = SDL_CreateRenderer(Sw, -1, 0/*SDL_RENDERER_PRESENTVSYNC*/);
-  SDL_Texture *St = SDL_CreateTexture(Sr, SDL_PIXELFORMAT_RGBA32,
-                                      SDL_TEXTUREACCESS_STREAMING, 160, 144);
-  Sk = SDL_GetKeyboardState(0);
+I main(){r1=(r0=(z*)mmap(0,1048576,PROT_READ,MAP_SHARED,open("rom.gb",O_RDONLY),0))+32768;s=open("rom.sav",
+O_CREAT|O_RDWR,0666);ftruncate(s,32768);r3=r2=(z*)mmap(0,32768,PROT_READ|PROT_WRITE,MAP_SHARED,s,0);O=145;
+DI=44032;SDL_Init(SDL_INIT_VIDEO);SDL_Renderer*Sr=SDL_CreateRenderer(SDL_CreateWindow("pokegb",0,0,800,720,
+SDL_WINDOW_SHOWN),-1,0/*SDL_RENDERER_PRESENTVSYNC*/);SDL_Texture*St=SDL_CreateTexture(Sr,SDL_PIXELFORMAT_RGBA32,
+SDL_TEXTUREACCESS_STREAMING,160,144);J=SDL_GetKeyboardState(0);
 
-  while (1) {
-    bcy=cy;
-    if (IME&IF&io[511]) { IF=halt=IME=0;cy+=8;fc=1;U=64;goto CALLU; }
-    else if (halt) T();
-    else switch ((op = r8())) {
-      case 0: break;
-      W4(1) *RR2[op>>4]=r16(); break;
-      W4(2) w(A,*RR3[op>>4]); HL+=HA[om/16]; break;
-      W4(3) (*RR2[op>>4])++; T(); break;
-      Y7P(4) u=++(*p); goto INC;
-      case 52: w(u=r()+1); INC: FS(16,u,0,!(u&15),0); break;
-      Y7P(5) u=--(*p); goto DEC;
-      case 53: w(u=r()-1); DEC: FS(16,u,1,u%16==15,0); break;
-      Y7P(6) *p=r8(); break;
-      case 7: A+=A+(fc=A>>7); goto FL;
-      W4(9) P=RR2[op>>4];FS(128,1,0,HL%4096+*P%4096>4095,HL+*P>65535);HL+=*P;T(); break;
-      W4(10) A=r(*RR3[op>>4]); HL+=HA[om/16]; break;
-      W4(11) (*RR2[op>>4])--; T(); break;
-      case 15: A=(fc=A&1)*128+A/2; goto FL;
-      case 23: fc=A>>7;A+=A+F/16%2; FL: FS(0,1,0,0,fc); break;
-      F5(32,24) u=r8(); if(fc) PC+=(int8_t)u,T(); break;
-      case 39: fc=u=0;
-        if (F&32||(!(F&64)&&A%15>9)) u=6;
-        if (F&16||(!(F&64)&&A>153)) u|=96,fc=1;
-        FS(65,A+=(F&64)?-u:u,0,0,fc);
-        break;
-      case 47: A=~A; FS(129,1,1,1,0); break;
-      case 54: w(r8()); break;
-      case 55:case 63: FS(128,1,0,0,op==55?1:!(F&16)); break;
-      Y7P(70) *p=r(); break;
-      Y49(64) *R8[om/8]=*R8[op&7]; break;
-      X7(112) w(*p); break;
-      case 118: halt=1; break;
-      A9(128) fn=fc=0; goto ALU;
-      A9(136) fn=0;fc=F/16%2; goto ALU;
-      A9(144) fc=1; goto SUB;
-      A9(152) fc=!(F/16%2); SUB: fn=1;v=~v; ALU: FS(0,u=A+v+fc,fn,(A%16+v%16+fc>15)^fn,(A+v+fc>255)^fn);A=u; break;
-      A9(160) FS(0,A&=v,0,1,0); break;
-      A9(168) FS(0,A^=v,0,0,0); break;
-      A9(176) FS(0,A|=v,0,0,0); break;
-      A9(184) FS(0,A!=v,1,A%16<v%16,A<v); break;
-      case 217: fc=IME=1; goto RET;
-      F5(192,201) RET: T(); if (fc) PC=r16(SP); break;
-      W4(193) RR[om>>4]=r16(SP); break;
-      F5(194,195) U=r16(); if (fc) PC=U,T(); break;
-      F5(196,205) U=r16(); CALLU: if (fc) push(PC),PC=U; break;
-      W4(197) push(RR[om>>4]); break;
-      case 203: switch((op=r8())) {
-        X7(0) *p+=*p+(fc=*p/128%2); goto FC;
-        X7(8) *p=(fc=*p&1)*128+*p/2; goto FC;
-        case 14: u=r();fc=u&1;w(u=fc*128+u/2); goto FU;
-        X7(16) fc=*p>>7;*p=*p*2+F/16%2; goto FC;
-        X7(24) fc=*p&1;*p=*p/2+((F*8)&128); goto FC;
-        X7(32) fc=*p/128%2;*p*=2; goto FC;
-        X7(40) fc=*p&1;*p=(int8_t)*p>>1; goto FC;
-        X7(48) FS(0,*p=*p*16+*p/16,0,0,0); break;
-        case 54: u=r();fc=0;w(u=u*16+u/16); FU: FS(0,u,0,0,fc); break;
-        X7(56) fc=*p&1;*p/=2; FC: FS(0,*p,0,0,fc); break;
-        Y8(70) u=r(); goto BITU;
-        Y56(64) u=*p; BITU: FS(16,u&(1<<om/8),0,1,0); break;
-        Y8(134) w(r()&~(1<<om/8)); break;
-        Y56(128) *p&=~(1<<om/8); break;
-        Y8(198) w(r()|(1<<om/8)); break;
-        Y56(192) *p|=1<<om/8; break;
-        default: return op;
-      } break;
-      case 224:case 226: w(A,65280+(op==224?r8():*R)); break;
-      case 233: PC=HL; break;
-      case 234: w(A,r16()); break;
-      case 240:case 250: A=r(op==240?65280|r8():r16()); break;
-      case 243:case 251: IME=op!=243; break;
-      case 248: u=r8();FS(0,1,0,(u8)SP+u>255,SP%16+u%16>15);HL=SP+(int8_t)u;T(); break;
-      case 249: SP=HL;T(); break;
-      default: return op;
-    }
-    for(DIV+=cy-bcy;bcy++!=cy;)
-      if (LCDC&128) {
-        if (++dot==1&&LY==144) IF|=1;
-        if (dot==456) {
-          if (LY<144) for (int x=160;--x>=0;) {
-            u8 win=LCDC&32&&LY>=io[330]&&x>=io[331]-7,
-              mx=win?x-io[331]+7:x+io[323], my=win?LY-io[330]:LY+io[322];
-            u16 tile=vram[((LCDC&(win?64:8)?7:6)<<10)+my/8*32+mx/8],p=327;
-            mx=(mx^7)&7;
-            u8* d=&vram[(LCDC&16?tile:256+(int8_t)tile)*16+my%8*2],
-              c=(d[1]>>mx)%2*2+(*d>>mx)%2;
-            if (LCDC&2) for (u8* o=io; o<io+160; o+=4) {
-              u8 dx=x-o[1]+8,dy=LY-*o+16;
-              if (dx<8&&dy<8) {
-                dx^=o[3]&32?0:7;
-                d=&vram[o[2]*16+(dy^(o[3]&64?7:0))*2];
-                u8 nc=(d[1]>>dx)%2*2+(*d>>dx)%2;
-                if (!((o[3]&128)&&c)&&nc) { c=nc; p+=1+!!(o[3]&8); break; }
-              }
-            }
-            fb[LY*160+x]=pal[(io[p]>>(2*c))&3];
-          }
-          if (LY==144) {
-            void* pixels; int pitch;
-            SDL_LockTexture(St, 0, &pixels, &pitch);
-            for (int y=144;--y>=0;) memcpy((u8*)pixels+y*pitch, fb+y*160, 640);
-            SDL_UnlockTexture(St);
-            SDL_RenderCopy(Sr, St, 0, 0);
-            SDL_RenderPresent(Sr);
-            SDL_Delay(0);
-            SDL_Event e;
-            while (SDL_PollEvent(&e)) if (e.type==SDL_QUIT) return 0;
-          }
-          LY=(LY+1)%154; dot=0;
-        }
-      } else {
-        LY=dot=0;
-      }
-  }
-}
+while(1){C_=C;if(IM&IF&i[511]){IF=h=IM=0;C+=8;c=1;U=64;G C_;}else if(h)T();else switch(o=y()){
+Q 0:B W(1)*E0[o>>4]=Y();B W(2)w(A,*E1[o>>4]);H+=HA[m/16];B W(3)(*E0[o>>4])++;T();B Y1(4)u=++(*p);G I_;Q 52:w(u=r()+
+1);I_:f(16,u,0,!(u&15),0);B Y1(5)u=--(*p);G D_;Q 53:w(u=r()-1);D_:f(16,u,1,u%16==15,0);B Y1(6)*p=y();B Q 7:A+=A+(c=
+A>>7);G F_;W(9)M=E0[o>>4];f(128,1,0,H%4096+*M%4096>4095,H+*M>65535);H+=*M;T();B W(10)A=r(*E1[o>>4]);H+=HA[m/16];B
+W(11)(*E0[o>>4])--;T();B Q 15:A=(c=A&1)*128+A/2;G F_;Q 23:c=A>>7;A+=A+F/16%2;F_:f(0,1,0,0,c);B Y5(32,24)u=y();if(c)P+=(
+int8_t)u,T();B Q 39:c=u=0;if(F&32||(!(F&64)&&A%15>9))u=6;if(F&16||(!(F&64)&&A>153))u|=96,c=1;f(65,A+=(F&64)?-u:u,0,0,c);
+B Q 47:A=~A;f(129,1,1,1,0);B Q 54:w(y());B Q 55:Q 63:f(128,1,0,0,o==55?1:!(F&16));B Y1(70)*p=r();B Y4(64)*e0[m/8]=*e0[
+o&7];B X(112)w(*p);B Q 118:h=1;B D(128)n=c=0;G A_;D(136)n=0;c=F/16%2;G A_;D(144)c=1;G SUB;D(152)c=!(F/16%2);SUB:
+n=1;x=~x;A_:f(0,u=A+x+c,n,(A%16+x%16+c>15)^n,(A+x+c>255)^n);A=u;B D(160)f(0,A&=x,0,1,0);B D(168)f(0,A^=x,0,0,0);B D
+(176)f(0,A|=x,0,0,0);B D(184)f(0,A!=x,1,A%16<x%16,A<x);B Q 217:c=IM=1;G R_;Y5(192,201)R_:T();if(c)P=Y(S);B W(193)E[m
+>>4]=Y(S);B Y5(194,195)U=Y();if(c)P=U,T();B Y5(196,205)U=Y();C_:if(c)ph(P),P=U;B W(197)ph(E[m>>4]);B Q 203:
+switch(o=y()){X(0)*p+=*p+(c=*p/128%2);G N;X(8)*p=(c=*p&1)*128+*p/2;G N;Q 14:u=r();c=u&1;w(u=c*128+u/2);G F0;X(16)c=*p
+>>7;*p=*p*2+F/16%2;G N;X(24)c=*p&1;*p=*p/2+((F*8)&128);G N;X(32)c=*p/128%2;*p*=2;G N;X(40)c=*p&1;*p=(int8_t)*p>>1;G
+N;X(48)f(0,*p=*p*16+*p/16,0,0,0);B Q 54:u=r();c=0;w(u=u*16+u/16);F0:f(0,u,0,0,c);B X(56)c=*p&1;*p/=2;N:f(0,*p,0,0,c);
+B Y0(70)u=r();G B_;Y2(64)u=*p;B_:f(16,u&(1<<m/8),0,1,0);B Y0(134)w(r()&~(1<<m/8));B Y2(128)*p&=~(1<<m/8);B Y0(198)
+w(r()|(1<<m/8));B Y2(192)*p|=1<<m/8;B}B Q 224:Q 226:w(A,65280+(o==224?y():*e));B Q 233:P=H;B Q 234:w(A,Y());B Q 240:Q
+250:A=r(o==240?65280|y():Y());B Q 243:Q 251:IM=o!=243;B Q 248:u=y();f(0,1,0,(z)S+u>255,S%16+u%16>15);H=S+(int8_t)u;T();
+B Q 249:S=H;T();B}for(DI+=C-C_;C_++!=C;)if(O&128){if(++d==1&&L==144)IF|=1;if(d==456){if(L<144)for(s=160;--s
+>=0;){z w=O&32&&L>=i[330]&&s>=i[331]-7,mx=w?s-i[331]+7:s+i[323],my=w?L-i[330]:L+i[322];Z t=v[((O&(w?64:8)?7:
+6)<<10)+my/8*32+mx/8],p=327;mx=(mx^7)&7;z*d=&v[(O&16?t:256+(int8_t)t)*16+my%8*2],c=(d[1]>>mx)%2*2+(*d>>mx)%2
+;if(O&2)for(z*o=i;o<i+160;o+=4){z dx=s-o[1]+8,dy=L-*o+16;if(dx<8&&dy<8){dx^=o[3]&32?0:7;d=&v[o[2]*16+(dy^(o[3]&64?
+7:0))*2];z g=(d[1]>>dx)%2*2+(*d>>dx)%2;if(!((o[3]&128)&&c)&&g){c=g;p+=1+!!(o[3]&8);B}}}fb[L*160+s]=pal[(i[p]>>(2*c))&
+3];}if(L==144){void*ps;SDL_LockTexture(St,0,&ps,&s);for(t=144;--t>=0;)memcpy((z*)ps+t*s,fb+t*160,640);SDL_UnlockTexture(
+St);SDL_RenderCopy(Sr,St,0,0);SDL_RenderPresent(Sr);SDL_Delay(0);SDL_Event e;while(SDL_PollEvent(&e))if(e.type==SDL_QUIT
+)K 0;}L=(L+1)%154;d=0;}}else L=d=0;}}

@@ -1,2 +1,2 @@
 pokegb: main.cc
-	$(CC) -Wall -lSDL2 -g -o $@ $<
+	$(CC) -Wall -Wno-return-type -lSDL2 -g -o $@ $<
