@@ -1,5 +1,4 @@
 #include <SDL2/SDL.h>
-#include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <sys/mman.h>
@@ -8,21 +7,19 @@
 
 using u8=uint8_t; using s8=int8_t; using u16=uint16_t; using u32=uint32_t; using u64=uint64_t;
 u8 op, u, v, fc, *rom0, *rom1, io[512], vram[8192], wram[16384], *eram, *eram1,
-    R[] = {19, 0, 216, 0, 77, 1, 176, 1, 254, 255}, &E = R[2], &D = R[3],
-    &F = R[6], &A = R[7], *R8[] = {&R[1], &R[0], &D, &E, &R[5], &R[4], &F, &A},
-    &IF = io[271], &LCDC = io[320], &LY = io[324], &WY = io[330], &WX = io[331],
-    &IE = io[511], IME = 0, halt = 0, FM[] = {128, 128, 16, 16},
-    FE[] = {0, 128, 0, 16}, *p;
+    R[] = {19, 0, 216, 0, 77, 1, 176, 1, 254, 255}, &F = R[6], &A = R[7],
+    *R8[] = {&R[1], &R[0], &R[3], &R[2], &R[5], &R[4], &F, &A}, &IF = io[271],
+    &LCDC = io[320], &LY = io[324], &WY = io[330], &WX = io[331], &IE = io[511],
+    IME = 0, halt = 0, FM[] = {128, 128, 16, 16}, FE[] = {0, 128, 0, 16}, *p;
 u8 const *Sk;
 u16 PC = 256, U, &HL = (u16 &)R[4], &SP = (u16 &)R[8],
     *R16[] = {(u16 *)&R[0], (u16 *)&R[2], &HL, &SP}, *R162 = (u16 *)R,
     *R163[] = {(u16 *)&R[0], (u16 *)&R[2], &HL, &HL}, &DIV = (u16 &)io[259],
     dot = 32, *P;
-u32 fb[23040], pal[4]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000};
+u32 fb[23040], pal[]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000};
 u64 bcy, cy = 0;
 
-template<int w>
-u8 mem(u16 a, u8 x) { cy+=4;
+u8 mem(u16 a, u8 x, int w) { cy+=4;
   switch (a >> 12) {
     default: case 2 ... 3: if (w) rom1 = rom0 + ((x?(x&63):1) << 14);
     case 0 ... 1: return rom0[a];
@@ -33,34 +30,29 @@ u8 mem(u16 a, u8 x) { cy+=4;
     case 15:
       if (a >= 65024) {
         if (w) {
-          if (a==65350) for(int i=0;i<160;++i) io[i]=mem<0>((x<<8)|i,0);
+          if (a==65350) for(int i=0;i<160;++i) io[i]=mem(x*256+i,0,0);
           io[a & 511] = x;
         }
         if (a == 65280) {
-          if (!(io[256]&16)) {
-            return ~(16|(Sk[81]*8)|(Sk[82]*4)|(Sk[80]*2)|Sk[79]);
-          } else if (!(io[256]&32)) {
-            return ~(32|(Sk[40]*8)|(Sk[43]*4)|(Sk[29]*2)|Sk[27]);
-          } else {
-            return 255;
-          }
+          if (!(io[256]&16)) return ~(16+Sk[81]*8+(Sk[82]*4)+Sk[80]*2+Sk[79]);
+          if (!(io[256]&32)) return ~(32+Sk[40]*8+Sk[43]*4+Sk[29]*2+Sk[27]);
+          return 255;
         }
         return io[a & 511];
       }
     case 12 ... 14: a&=16383; if (w) wram[a] = x; return wram[a];
   }
 }
-u8 r(u16 a) { return mem<0>(a,0); }
-void w(u16 a, u8 x) { mem<1>(a,x); }
-void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(Z<<7)|(N<<6)|(H<<5)|(C<<4); }
+u8 r(u16 a) { return mem(a,0,0); }
+void w(u16 a, u8 x) { mem(a,x,1); }
+void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(Z*128+N*64+H*32+C*16); }
 u8 r8() { return r(PC++); }
-u16 r16() { u8 l=r8(),h=r8(); return (h<<8)|l; }
-u16 pop() { u8 l=r(SP++), h=r(SP++); return (h<<8)|l; }
+u16 r16() { u=r8(); return r8()*256+u; }
+u16 pop() { u=r(SP++); return r(SP++)*256+u; }
 void push(u16 x) { w(--SP,x>>8);w(--SP,x&255); cy+=4; }
 
-int main(int argc, char** argv) {
-  if (argc != 2) return 1;
-  rom1 = (rom0 = (u8*)mmap(0,1048576,PROT_READ,MAP_SHARED,open(argv[1],O_RDONLY),0)) + 32768;
+int main() {
+  rom1 = (rom0 = (u8*)mmap(0,1048576,PROT_READ,MAP_SHARED,open("rom.gb",O_RDONLY),0)) + 32768;
   int sav = open("rom.sav",O_CREAT|O_RDWR,0666);
   ftruncate(sav,32768);
   eram1 = eram = (u8*)mmap(0,32768,PROT_READ|PROT_WRITE,MAP_SHARED,sav,0);
@@ -70,7 +62,7 @@ int main(int argc, char** argv) {
   SDL_Renderer* Sr = SDL_CreateRenderer(Sw, -1, 0/*SDL_RENDERER_PRESENTVSYNC*/);
   SDL_Texture *St = SDL_CreateTexture(Sr, SDL_PIXELFORMAT_RGBA32,
                                       SDL_TEXTUREACCESS_STREAMING, 160, 144);
-  Sk = SDL_GetKeyboardState(NULL);
+  Sk = SDL_GetKeyboardState(0);
 
   while (true) {
     bcy=cy;
@@ -91,13 +83,13 @@ int main(int argc, char** argv) {
       OP7X(4) ++(*p);FS(16,!*p,0,!(*p&15),0); break;
       OP7X(5) --(*p);FS(16,!*p,1,(*p&15)==15,0); break;
       OP7X(6) *p=r8(); break;
-      case 7: fc=(A>>7);A=(A*2)|fc;FS(0,0,0,0,fc); break;
+      case 7: fc=A>>7;A+=A+fc;FS(0,0,0,0,fc); break;
       OP4(9) P=R16[op>>4];FS(128,0,0,(HL&4095)+(*P&4095)>4095,HL+*P>65535);HL+=*P;cy+=4; break;
       OP4(10) A=r(*R163[op>>4]); HL+=(op==42)?1:(op==58)?-1:0; break;
       OP4(11) (*R16[op>>4])--; cy+=4; break;
-      case 15: fc=A&1;A=(fc<<7)|(A/2);FS(0,0,0,0,fc); break;
-      case 23: fc=A>>7;A=(A*2)|((F>>4)&1);FS(0,0,0,0,fc); break;
-      FCHK(32,24) {s8 s=r8(); if(fc) { PC+=s;cy+=4; }} break;
+      case 15: fc=A&1;A=fc*128+A/2;FS(0,0,0,0,fc); break;
+      case 23: fc=A>>7;A+=A+((F>>4)&1);FS(0,0,0,0,fc); break;
+      FCHK(32,24) u=r8(); if(fc) { PC+=(s8)u;cy+=4; } break;
       case 39: fc=u=0;
         if ((F&32)||(!(F&64)&&(A&15)>9)) u=6;
         if ((F&16)||(!(F&64)&&A>153)) { u|=96;fc=1; }
@@ -135,15 +127,15 @@ int main(int argc, char** argv) {
       FCHK(196,205) U=r16(); CALLU: if (fc) {push(PC);PC=U;} break;
       OP4(197) push(R162[(op-197)>>4]); break;
       case 203: switch((op=r8())) {
-        case 7: fc=(A>>7)&1;A=(A*2)|fc;FS(0,!A,0,0,fc); break;
-        case 11: fc=E&1;E=(fc<<7)|(E/2);FS(0,!E,0,0,fc); break;
-        case 14: u=r(HL);fc=u&1;u=(fc<<7)|(u/2);FS(0,!u,0,0,fc);w(HL,u); break;
-        OP7(16) fc=*p>>7;*p=(*p*2)|((F>>4)&1);FS(0,!*p,0,0,fc); break;
-        OP7(24) fc=*p&1;*p=(*p/2)|((F*8)&128);FS(0,!*p,0,0,fc); break;
+        case 7: fc=(A>>7)&1;A+=A+fc;FS(0,!A,0,0,fc); break;
+        OP7(8) fc=*p&1;*p=fc*128+*p/2;FS(0,!*p,0,0,fc); break;
+        case 14: u=r(HL);fc=u&1;u=fc*128+u/2;FS(0,!u,0,0,fc);w(HL,u); break;
+        OP7(16) fc=*p>>7;*p=*p*2+((F>>4)&1);FS(0,!*p,0,0,fc); break;
+        OP7(24) fc=*p&1;*p=*p/2+((F*8)&128);FS(0,!*p,0,0,fc); break;
         OP7(32) fc=(*p>>7)&1;*p*=2; FS(0,!*p,0,0,fc); break;
-        case 42: fc=D&1;D=(s8)D>>1; FS(0,!D,0,0,fc); break;
-        OP7(48) *p=(*p*16)|(*p>>4); FS(0,!*p,0,0,0); break;
-        case 54: u=r(HL);u=(u*16)|(u>>4); FS(0,!u,0,0,0);w(HL,u); break;
+        OP7(40) fc=*p&1;*p=(s8)*p>>1; FS(0,!*p,0,0,fc); break;
+        OP7(48) *p=*p*16+*p/16; FS(0,!*p,0,0,0); break;
+        case 54: u=r(HL);u=u*16+u/16; FS(0,!u,0,0,0);w(HL,u); break;
         OP7(56) fc=*p&1;*p/=2; FS(0,!*p,0,0,fc); break;
         OP8X(70) u=r(HL); goto BITU;
         OP56(64) u=*R8[op&7]; BITU: FS(16,!(u&(1<<((op-64)/8))),0,1,0); break;
@@ -153,12 +145,12 @@ int main(int argc, char** argv) {
         OP56(192) *R8[op&7]|=1<<((op-192)/8); break;
         default: goto BAD;
       } break;
-      case 224: case 226: v=(op==224)?r8():R[0]; w(65280|v,A); break;
+      case 224: case 226: w(65280+(op==224?r8():R[0]),A); break;
       case 233: PC=HL; break;
       case 234: w(r16(),A); break;
       case 240: A=r(65280|r8()); break;
       case 243: case 251: IME=(op==243)?0:31; break;
-      case 248: u=r8();FS(0,0,0,(u8)SP+u>255,SP&15+u&15>15);HL=SP+(s8)u;cy+=4; break;
+      case 248: u=r8();FS(0,0,0,(u8)SP+u>255,(SP&15)+(u&15)>15);HL=SP+(s8)u;cy+=4; break;
       case 249: SP=HL;cy+=4; break;
       case 250: A=r(r16()); break;
  BAD: default:
@@ -190,7 +182,6 @@ int main(int argc, char** argv) {
               if (LCDC&2) {
                 for (int i = 0; i < 40; ++i) {
                   u8*o=&io[i*4], dx=x-o[1]+8,dy=LY-o[0]+16;
-                  assert(!(LCDC&4));
                   if (dx<8&&dy<8) {
                     if (o[3]&64) dy=7-dy;
                     if (o[3]&32) dx=7-dx;
@@ -204,11 +195,11 @@ int main(int argc, char** argv) {
             }
           } else if (LY == 144) {
             void* pixels; int pitch;
-            SDL_LockTexture(St, NULL, &pixels, &pitch);
+            SDL_LockTexture(St, 0, &pixels, &pitch);
             for (int y = 0; y < 144; ++y)
               memcpy((u8 *)pixels + y * pitch, &fb[y * 160], 640);
             SDL_UnlockTexture(St);
-            SDL_RenderCopy(Sr, St, NULL, NULL);
+            SDL_RenderCopy(Sr, St, 0, 0);
             SDL_RenderPresent(Sr);
             SDL_Delay(0);
             SDL_Event e;
