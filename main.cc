@@ -21,14 +21,21 @@ u16 PC = 256, U, &HL = (u16 &)R[4], &SP = (u16 &)R[8],
 u32 fb[23040], pal[4]={0xffffffff,0xffaaaaaa,0xff555555,0xff000000};
 u64 bcy, cy = 0;
 
-u8 r(u16 a) { cy+=4;
+template<int w>
+u8 mem(u16 a, u8 x) { cy+=4;
   switch (a >> 12) {
-    default: case 0 ... 3: return rom0[a];
-    case 4 ... 7: return rom1[a & 16383];
-    case 8 ... 9: return vram[a & 8191];
-    case 10 ... 11: return eram1[a & 8191];
+    default: case 2 ... 3: if (w) rom1 = rom0 + ((x?(x&63):1) << 14);
+    case 0 ... 1: return rom0[a];
+    case 4 ... 5: if (w && x <= 3) eram1 = eram + (x << 13);
+    case 6 ... 7: return rom1[a & 16383];
+    case 8 ... 9: a&=8191; if (w) vram[a] = x; return vram[a];
+    case 10 ... 11: a&=8191; if (w) eram1[a] = x; return eram1[a];
     case 15:
       if (a >= 65024) {
+        if (w) {
+          if (a==65350) for(int i=0;i<160;++i) io[i]=mem<0>((x<<8)|i,0);
+          io[a & 511] = x;
+        }
         if (a == 65280) {
           if (!(io[256]&16)) {
             return ~(16|(Sk[81]*8)|(Sk[82]*4)|(Sk[80]*2)|Sk[79]);
@@ -40,24 +47,11 @@ u8 r(u16 a) { cy+=4;
         }
         return io[a & 511];
       }
-    case 12 ... 14: return wram[a & 16383];
+    case 12 ... 14: a&=16383; if (w) wram[a] = x; return wram[a];
   }
 }
-void w(u16 a, u8 x) { cy+=4;
-  switch (a >> 12) {
-    case 2 ... 3: rom1 = rom0 + ((x?(x&63):1) << 14); break;
-    case 4 ... 5: if (x <= 3) eram1 = eram + (x << 13); break;
-    case 8 ... 9: vram[a & 8191] = x; break;
-    case 10 ... 11: eram1[a & 8191] = x; break;
-    case 15:
-      if (a >= 65024) {
-        if (a==65350) for(int i=0;i<160;++i) io[i]=r((x<<8)|i);
-        io[a & 511] = x;
-        break;
-      } // fallthrough
-    case 12 ... 14: wram[a & 16383] = x; break;
-  }
-}
+u8 r(u16 a) { return mem<0>(a,0); }
+void w(u16 a, u8 x) { mem<1>(a,x); }
 void FS(u8 M,int Z,int N,int H,int C) { F=(F&M)|(Z<<7)|(N<<6)|(H<<5)|(C<<4); }
 u8 r8() { return r(PC++); }
 u16 r16() { u8 l=r8(),h=r8(); return (h<<8)|l; }
