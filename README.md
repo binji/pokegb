@@ -39,9 +39,7 @@ Keys:
 
 ## Updating keys
 
-Look for this line in the source:
-https://github.com/binji/pokegb/blob/9c03ea41714b24373a352f75d27b0dc86a5b2250/pokegb.cc#L30
-
+Look for [line 30](https://github.com/binji/pokegb/blob/9c03ea41714b24373a352f75d27b0dc86a5b2250/pokegb.cc#L30) the source.
 The following table shows which numbers map to which keyboard keys:
 
 | number | default key | gameboy button |
@@ -55,5 +53,4 @@ The following table shows which numbers map to which keyboard keys:
 | 81 | Arrow Down | DPAD Down |
 | 82 | Arrow Up | DPAD Up |
 
-Replace the numbers on this line with one from the SDL scancode list:
-https://www.libsdl.org/tmp/SDL/include/SDL_scancode.h
+Replace the numbers on this line with one from the [SDL scancode list](https://www.libsdl.org/tmp/SDL/include/SDL_scancode.h).
