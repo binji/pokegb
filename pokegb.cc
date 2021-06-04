@@ -1,21 +1,21 @@
-#include <SDL2/SDL.h>                                                                                      /******************************************/
-#include <cstdint>                                                                                         /* POKEGB by Ben Smith (May 2021)         */
-#include <fcntl.h>                                                                                         /* -------------------------------------- */
-#include <sys/mman.h>                                                                                      /* A GB emulator that can only play       */
-#include <unistd.h>                                                                                        /* Pokemon Blue, written in C++. Requires */
-#define G goto                                                                                             /* gcc/clang and Linux.                   */
-#define Q case                                                                                             /*                                        */
-#define B break;                                                                                           /* $ cc -lSDL2 pokegb.cc -o pokegb        */
-#define K return                                                                                           /* $ ./pokegb   # reads from rom.gb       */
-#define Y1(_)V(_)p=e0[(o-_)/8];                                                                            /*              # writes to rom.sav       */
-#define Y2(_)Y4(_)X(_+48)m=o-_;                                                                            /*                                        */
-#define Y0(_)Y3(_)Y3(_+32)m=o-_;                                                                           /* Controls: Up/Down/Left/Right=Arrow Keys*/
-#define Y3(_)Q _:Q _+8:Q _+16:Q _+24:                                                                      /*           B Button=Z, A Button=X       */
-#define V(_)Y3(_)Q _+32:Q _+40:Q _+56:                                                                     /*           Start=Enter, Select=Tab      */
-#define W(_)Q _:Q _+16:Q _+32:Q _+48:m=o-_;                                                                /*                                        */
-#define Y4(_)V(_)V(_+1)V(_+2)V(_+3)V(_+4)V(_+5)V(_+7)m=o-_;                                                /* Many features are not implemented!     */
-#define D(_)Q _+6:Q _+70:X(_)x=(o==_+6)?r():(o==_+70)?y():*p;                                              /*                                        */
-#define X(_)Q _:Q _+1:Q _+2:Q _+3:Q _+4:Q _+5:Q _+7:p=e0[o&7];                                             /******************************************/
+#include <SDL2/SDL.h>                                                                                     /******************************************/
+#include <cstdint>                                                                                        /* POKEGB by Ben Smith (May 2021)         */
+#include <fcntl.h>                                                                                        /* -------------------------------------- */
+#include <sys/mman.h>                                                                                     /* A GB emulator that can only play       */
+#include <unistd.h>                                                                                       /* Pokemon Blue, written in C++. Requires */
+#define G goto                                                                                            /* gcc/clang and Linux.                   */
+#define Q case                                                                                            /*                                        */
+#define B break;                                                                                          /* $ cc -lSDL2 pokegb.cc -o pokegb        */
+#define K return                                                                                          /* $ ./pokegb   # reads from rom.gb       */
+#define Y1(_)V(_)p=e0[(o-_)/8];                                                                           /*              # writes to rom.sav       */
+#define Y2(_)Y4(_)X(_+48)m=o-_;                                                                           /*                                        */
+#define Y0(_)Y3(_)Y3(_+32)m=o-_;                                                                          /* Controls: Up/Down/Left/Right=Arrow Keys*/
+#define Y3(_)Q _:Q _+8:Q _+16:Q _+24:                                                                     /*           B Button=Z, A Button=X       */
+#define V(_)Y3(_)Q _+32:Q _+40:Q _+56:                                                                    /*           Start=Enter, Select=Tab      */
+#define W(_)Q _:Q _+16:Q _+32:Q _+48:m=o-_;                                                               /*                                        */
+#define Y4(_)V(_)V(_+1)V(_+2)V(_+3)V(_+4)V(_+5)V(_+7)m=o-_;                                               /* Many features are not implemented!     */
+#define D(_)Q _+6:Q _+70:X(_)x=(o==_+6)?r():(o==_+70)?y():*p;                                             /*                                        */
+#define X(_)Q _:Q _+1:Q _+2:Q _+3:Q _+4:Q _+5:Q _+7:p=e0[o&7];                                            /******************************************/
 #define Y5(_,y)Y3(_)Q y:c=(o==y)||(F&FM[(o-_)/8])==FE[(o-_)/8];
                      using z=                                          uint8_t;                                          using Z=
                 uint16_t;using I=                                 int;z o,m,u,x,c,n,                                 *r0,*r1,i[512],v
