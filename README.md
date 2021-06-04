@@ -8,10 +8,16 @@ Plays Pokemon Blue.
 
 ## Building
 
-Only builds on Linux AFAIK.
+Only builds on Linux and macOS AFAIK.
 
 ```
 $ make
+```
+
+On macOS, you'll need to create a save file too (just the first time):
+
+```
+$make rom.sav
 ```
 
 ## Running
