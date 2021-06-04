@@ -17,7 +17,7 @@ $ make
 On macOS, you'll need to create a save file too (just the first time):
 
 ```
-$make rom.sav
+$ make rom.sav
 ```
 
 ## Running
