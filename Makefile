@@ -1,5 +1,5 @@
 pokegb: pokegb.cc
-	$(CC) -O2 -Wall -Wno-return-type -Wno-misleading-indentation -o $@ $< -lSDL2 
+	$(CC) -O2 -Wall -Wno-return-type -Wno-misleading-indentation -Wno-parentheses -o $@ $< -lSDL2
 
 rom.sav: empty.sav
 	cp $< $@

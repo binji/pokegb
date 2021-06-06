@@ -1,68 +1,572 @@
-#include <SDL2/SDL.h>                                                                                     /******************************************/
-#include <cstdint>                                                                                        /* POKEGB by Ben Smith (May 2021)         */
-#include <fcntl.h>                                                                                        /* -------------------------------------- */
-#include <sys/mman.h>                                                                                     /* A GB emulator that can only play       */
-#include <unistd.h>                                                                                       /* Pokemon Blue, written in C++. Requires */
-#define G goto                                                                                            /* gcc/clang and Linux.                   */
-#define Q case                                                                                            /*                                        */
-#define B break;                                                                                          /* $ cc -lSDL2 pokegb.cc -o pokegb        */
-#define K return                                                                                          /* $ ./pokegb   # reads from rom.gb       */
-#define Y1(_)V(_)p=e0[(o-_)/8];                                                                           /*              # writes to rom.sav       */
-#define Y2(_)Y4(_)X(_+48)m=o-_;                                                                           /*                                        */
-#define Y0(_)Y3(_)Y3(_+32)m=o-_;                                                                          /* Controls: Up/Down/Left/Right=Arrow Keys*/
-#define Y3(_)Q _:Q _+8:Q _+16:Q _+24:                                                                     /*           B Button=Z, A Button=X       */
-#define V(_)Y3(_)Q _+32:Q _+40:Q _+56:                                                                    /*           Start=Enter, Select=Tab      */
-#define W(_)Q _:Q _+16:Q _+32:Q _+48:m=o-_;                                                               /*                                        */
-#define Y4(_)V(_)V(_+1)V(_+2)V(_+3)V(_+4)V(_+5)V(_+7)m=o-_;                                               /* Many features are not implemented!     */
-#define D(_)Q _+6:Q _+70:X(_)x=(o==_+6)?r():(o==_+70)?y():*p;                                             /*                                        */
-#define X(_)Q _:Q _+1:Q _+2:Q _+3:Q _+4:Q _+5:Q _+7:p=e0[o&7];                                            /******************************************/
-#define Y5(_,y)Y3(_)Q y:c=(o==y)||(F&FM[(o-_)/8])==FE[(o-_)/8];
-                     using z=                                          uint8_t;                                          using Z=
-                uint16_t;using I=                                 int;z o,m,u,x,c,n,                                 *r0,*r1,i[512],v
-              [8192],r4[16384],*r2,                             *r3,e[]={19,0,216,0,77                            ,1,176,1,254,255},&F=e
-            [6],&A=e[7],*e0[]={e+1,e,e                        +3,e+2,e+5,e+4,&F,&A},&IF=                        i[271],&O=i[320],&L=i[324]
-           ,IM,h,*p;z const*J;Z P=256,U                      ,*E=(Z*)e,&H=E[2],&S=E[4],&DI                     =(Z&)i[259],d=32,*M,*E0[]={E
-         ,E+1,&H,&S},*E1[]={E,E+1,&H,&H},                  C_,C;I s,t,HA[]={0,0,1,-1},FM[]=                  {128,128,16,16},FE[]={0,128,0,16
-        },fb[23040],j=-65536,l=-23197,q=-                 16777216,p_[]={-1,l,j,q,-1,-8092417               ,-12961132,q,-1,l,j,q};void T(){C
-       +=4;}z me(Z a,z x,I w){T();switch(a               >>12){Q 2:Q 3:if(w)r1=r0+((x?x&63:1)              <<14);Q 0:Q 1 :K r0[a];Q 4:Q 5:if(w
-      &&x<=3)r3=r2+(x<<13);Q 6:Q 7:K r1[a&              16383];Q 8:Q 9:a&=8191;if(w)v[a]=x;K v            [a];Q 10:Q 11:a&=8191;if(w)r3[a]=x;K 
-     r3[a];Q 15:if(a>=65024){if(w){if(a==              65350)for(I y=160;--y>=0;)i[y]=me(x*256+          y,0,0);i[a&511]=x;}if(a==65280){if(!(i[
-     256]&16))K~(16+J[81]*8+J[82]*4+J[80]*2+J          [79]);if(!(i[256]&32))K~(32+J[40]*8+J[43          ]*4+J[29]*2+J[27]);K 255;}K i[a&511];} Q
-    12 ...14:a&=16383;if(w)r4[a]=x;K r4[a];}}z        r(Z a=H){K me(a,0,0);}void w(z x,Z a=H){me        (a,x,1);}void f(z M,I Z,I N,I H,I C){F=(F&
-   M)|(!Z*128+N*64+H*32+C*16);}z y(){K r(P++);}      Z Y(Z&x=P){u=r(x++);K r(x++)*256+u;}void ph(      Z x){w(x>>8,--S);w(x,--S);T();}I main(){r1=(
-   r0=(z*)mmap(0,1048576,1,1,open("rom.gb",0),0      ))+32768;s=open("rom.sav",66,0666);ftruncate      (s,32768);r3=r2=(z*)mmap(0,32768,3,1,s,0);O=
-  145;DI=44032;SDL_Init(32);SDL_Renderer*Sr=/**/    SDL_CreateRenderer(SDL_CreateWindow("pokegb",0    ,0,800,720,4),-1,4);SDL_Texture*St=/*********/
-  SDL_CreateTexture(Sr,376840196,1,160,144);/**/    J=SDL_GetKeyboardState(0);while(1){C_=C;if(IM&    IF&i[511]){IF=h=IM=0;C+=8;c=1;U=64;G C_;} else
- if(h)T();else switch(o=y()){Q 0:B W(1)*E0[o>>4]=  Y();B W(2)w(A,*E1[o>>4]);H+=HA[m/16];B W(3)(*E0[  o>>4])++;T();B Y1(4)u=++(*p);G I_;Q 52:w(u=r()+1
- );I_:f(16,u,0,!(u &15),0);B Y1(5)u=--(*p);G D_;Q  53:w(u=r()-1);D_:f(16,u,1,u%16==15,0);B Y1(6)*p=  y();B Q 7:A+=A+(c=A>>7);G F_;W(9)M=E0[o>>4];  f(
- 128,1,0,H%4096+*M%4096>4095,H+*M>65535);H+=*M;T(  );B W(10)A=r(*E1[o>>4]);H+=HA[m/16];B W(11)(*E0[  o>>4])--;T();B Q 15:A=(c=A&1)*128+A/2;G F_;Q 23:
- c=A>>7;A+=A+F/16%2;F_:f(0,1,0,0,c);B Y5(32,24)u=  y();if(c)P+=(int8_t)u,T();B Q 39:c=u=0;if(F&32||  (!(F&64)&&A%15>9))u=6;if(F&16||(!(F&64)&&A>153))
-u|=96,c=1;f(65,A+=(F&64    )?-u:u,0,0,c);B Q 47:A=~A;f(129,1,1,1,0);B Q 54   :w(y());B Q 55:Q 63:f(128,1,0,0,o==55?1:!(F&16    ));B Y1(70)*p=r();B Y4(
-64)*e0[m/8]=*e0[o&7];        B X(112)w(*p);B Q 118:h=1;B D(128)n=c=0;G         A_;D(136)n=0;c=F/16%2;G A_;D(144)c=1;G S_;        D(152)c=!(F/16%2);S_:
-n=1;x=~x;A_:f(0,u=A+          x+c,n,(A%16+x%16+c>15)^n,(A+x+c>255)^n);          A=u;B D(160)f(0,A&=x,0,1,0);B D(168)f(0,          A^=x,0,0,0);B D(176)
-f(0,A|=x,0,0,0);B D(          184)f(0,A!=x,1,A%16<x%16,A<x);B Q 217:c=          IM=1;G R_;Y5(192,201)R_:T();if(c)P=Y(S);          B W(193)E[m>>4]=Y(S)
-;B Y5(194,195)U=Y()            ;if(c)P=U,T();B Y5(196,205)U=Y();C_:if            (c)ph(P),P=U;B W(197)ph(E[m>>4]);/***/            B Q 203:switch(o=y(
-)){X(0)*p+=*p+(c=*p            /128%2);G N;X(8)*p=(c=*p&1)*128+*p/2;G            N;Q 14:u=r();c=u&1;w(u=c*128+u/2);G F0            ;X(16)c=*p>>7;*p=*p
-*2+F/16%2;G N;X(24)            c=*p&1;*p=*p/2+((F*8)&128);G N;X(32)c=            *p/128%2;*p*=2;G N;X(40)c=*p&1;*p=/**/            (int8_t)*p>>1;G N;X
-(48)f(           0,            *p           =*p*16+*p/16           ,0            ,0           ,0);B Q 54:u           =r            ()           ;c=0;w
-(u=u*16          +u/          16)           ;F0:f(0,u,0,           0,c          );B           X(56)c= *p&1           ;*p          /=2           ;N:f(0
-,*p,0,0           ,c          );           B Y0(70)u=r();           G           B_           ;Y2(64)u=*p;B_           :f          (16          ,u&(1<<
-m/8),0,           1,0        );B           Y0(134  )w(r()           &~(        1<<           m/8));  B Y2(            128        )*p           &=~ (1
-<<m/8);            B Y0    (198            )w(r()  |(1<<m            /8))    ;B Y2           (192)*  p|=1<<            m/8;B   }B Q            224: Q
-226:w(A,            65280+(o==            224?y()  :*e));B            Q 233:P=H;            B Q 234  :w(A,Y(            ));B Q 240            : Q 250
- :A=r (o              ==240?              65280|y  ():Y())              ;  B Q              243 :Q   251:IM=              o!=243             ;B Q 248
-  :u=y();                                f(0,1,0    ,(z)S+u                                >255,S%    16+u%16                                >15);H=
-  S+/***/                                (int8_t    )u;T();                                B Q 249    :S=H;T(                                );B}for
-  (DI+= C-                              C_;C_++      !=C;)if                              (O&128)      {if(++d                              ==1&& L
-   ==144)IF                            |=1;if(d      ==456) {                            if(L<144      )for (s=                            160;-- s
-    >=0;) {z                          w=O&32&&        L>=i[330                          ]&&s>=i[        331]- 7,                          mx=w?s-i
-     [331]+7:                        s+i[323]          ,my=w?L-                        i[330]:L          +i[322];                        Z t=v[((
-     O&(w?64:8                      )?7:6) <<          10)+my/8*                      32+mx/8],          p=0;mx =(                      mx^7)&7;z
-      *d=&v[ (O&                  16?t:256+(            int8_t)t)*                  16+my%8*2]            ,c=(d[1]>>                  mx)%2*2+(*
-       d>>mx)%2;if              (O&2)for(z*              o=i;o<i+160              ;o+=4){z dx              =s-o[1]+8,dy             =L-*o+16;if
-        (dx<8&&dy<8){        dx^=o[3]&32?0                :7;d=&v[o[2]*        16+(dy^(o[3]&                64?7:0))*2];z        g=(d[1]>>dx)%
-         2*2+(*d>>dx)%2;if(!((o[3]&128)&&                  c)&&g){c=g;p+=1+!!(o[3]&8);B} }}                  fb[L*160+s]=p_[(i[327+p]>>(2*c))
-           %4+p*4];}if(L==144){void*ps;                      SDL_LockTexture(St,0,&ps,&s)                      ;for(t=144;--t>=0;)memcpy((z
-            *)ps+t*s,fb+t*160,640);/**/                       SDL_UnlockTexture(St);/**/                        SDL_RenderCopy(Sr,St,0,0);
-            SDL_RenderPresent(Sr);/**/                        SDL_Event e;while(/******/                        SDL_PollEvent(&e))if(e.type
-              ==SDL_QUIT)K 0;}L=(L+1                            )%154;d=0;}}else L=d=0                            ;}}/*****************/
+#include <SDL2/SDL.h>
+#include <cstdint>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#define OP4_NX8(_) case _: case _ + 8: case _ + 16: case _ + 24:
+
+#define OP4_NX16_REL(_)                                                        \
+  case _:                                                                      \
+  case _ + 16:                                                                 \
+  case _ + 32:                                                                 \
+  case _ + 48:                                                                 \
+    opcode_rel = opcode - _;
+
+#define OP5_FLAG(_, always)                                                    \
+  OP4_NX8(_)                                                                   \
+  case always:                                                                 \
+    carry = (opcode == always) ||                                              \
+            (F & F_mask[(opcode - _) / 8]) == F_equals[(opcode - _) / 8];
+
+#define OP8_NX8_REL(_) OP4_NX8(_) OP4_NX8(_ + 32) opcode_rel = opcode - _;
+
+#define OP7_PTR(_)                                                             \
+  case _:                                                                      \
+  case _ + 1:                                                                  \
+  case _ + 2:                                                                  \
+  case _ + 3:                                                                  \
+  case _ + 4:                                                                  \
+  case _ + 5:                                                                  \
+  case _ + 7:                                                                  \
+    ptr8 = reg8_group[opcode & 7];
+
+#define OP7_NX8(_) OP4_NX8(_) case _ + 32 : case _ + 40 : case _ + 56:
+
+#define OP7_NX8_PTR(_) OP7_NX8(_) ptr8 = reg8_group[(opcode - _) / 8];
+
+#define OP49_REL(_)                                                            \
+  OP7_NX8(_)                                                                   \
+  OP7_NX8(_ + 1)                                                               \
+  OP7_NX8(_ + 2)                                                               \
+  OP7_NX8(_ + 3)                                                               \
+  OP7_NX8(_ + 4)                                                               \
+  OP7_NX8(_ + 5)                                                               \
+  OP7_NX8(_ + 7)                                                               \
+  opcode_rel = opcode - _;
+
+#define OP56_PTR_REL(_) OP49_REL(_) OP7_PTR(_ + 48) opcode_rel = opcode - _;
+
+#define OP9_IMM_PTR(_)                                                         \
+  case _ + 6:                                                                  \
+  case _ + 70:                                                                 \
+    OP7_PTR(_)                                                                 \
+    operand = (opcode == _ + 6)    ? read8()                                   \
+              : (opcode == _ + 70) ? read8_pc()                                \
+                                   : *ptr8;
+
+uint8_t opcode, opcode_rel, tmp8, operand, carry, neg, *rom0, *rom1, io[512], video_ram[8192],
+    work_ram[16384], *extram, *extrambank,
+    reg8[] = {19, 0, 216, 0, 77, 1, 176, 1, 254, 255}, &F = reg8[6],
+    &A = reg8[7], *reg8_group[] = {reg8 + 1, reg8,     reg8 + 3, reg8 + 2,
+                                   reg8 + 5, reg8 + 4, &F,       &A},
+    &IF = io[271], &LCDC = io[320], &LY = io[324], IME, halt, *ptr8;
+
+uint8_t const *key_state;
+
+uint16_t PC = 256, temp16, *reg16 = (uint16_t *)reg8, &HL = reg16[2],
+         &SP = reg16[4], &DIV = (uint16_t &)io[259], ppu_dot = 32, *ptr16,
+         *reg16_group1[] = {reg16, reg16 + 1, &HL, &SP},
+         *reg16_group2[] = {reg16, reg16 + 1, &HL, &HL}, prev_cycles, cycles;
+
+int tmp, tmp2,
+    HL_add[] = {0, 0, 1, -1}, F_mask[] = {128, 128, 16, 16},
+    F_equals[] = {0, 128, 0, 16}, frame_buffer[23040],
+    palette[] = {-1,        -23197,    -65536, -16777216, -1,     -8092417,
+                 -12961132, -16777216, -1,     -23197,    -65536, -16777216};
+
+void tick() { cycles += 4; }
+
+uint8_t mem_access(uint16_t addr, uint8_t val, int write) {
+  tick();
+  switch (addr >> 13) {
+    case 1:
+      if (write)
+        rom1 = rom0 + ((val ? val & 63 : 1) << 14);
+
+    case 0:
+      return rom0[addr];
+
+    case 2:
+      if (write && val <= 3)
+        extrambank = extram + (val << 13);
+
+    case 3:
+      return rom1[addr & 16383];
+
+    case 4:
+      addr &= 8191;
+      if (write)
+        video_ram[addr] = val;
+      return video_ram[addr];
+
+    case 5:
+      addr &= 8191;
+      if (write)
+        extrambank[addr] = val;
+      return extrambank[addr];
+
+    case 7:
+      if (addr >= 65024) {
+        if (write) {
+          if (addr == 65350)
+            for (int y = 160; --y >= 0;)
+              io[y] = mem_access(val << 8 | y, 0, 0);
+          io[addr & 511] = val;
+        }
+
+        if (addr == 65280) {
+          if (!(io[256] & 16))
+            return ~(16 + key_state[SDL_SCANCODE_DOWN] * 8 +
+                     key_state[SDL_SCANCODE_UP] * 4 +
+                     key_state[SDL_SCANCODE_LEFT] * 2 +
+                     key_state[SDL_SCANCODE_RIGHT]);
+          if (!(io[256] & 32))
+            return ~(32 + key_state[SDL_SCANCODE_RETURN] * 8 +
+                     key_state[SDL_SCANCODE_TAB] * 4 +
+                     key_state[SDL_SCANCODE_Z] * 2 +
+                     key_state[SDL_SCANCODE_X]);
+          return 255;
+        }
+        return io[addr & 511];
+      }
+
+    case 6:
+      addr &= 16383;
+      if (write)
+        work_ram[addr] = val;
+      return work_ram[addr];
+  }
+}
+
+uint8_t read8(uint16_t addr = HL) { return mem_access(addr, 0, 0); }
+
+void write8(uint8_t val, uint16_t addr = HL) { mem_access(addr, val, 1); }
+
+void set_flags(uint8_t mask, int Z, int N, int H, int C) {
+  F = F & mask | !Z << 7 | N << 6 | H << 5 | C << 4;
+}
+
+uint8_t read8_pc() { return read8(PC++); }
+
+uint16_t read16(uint16_t &addr = PC) {
+  tmp8 = read8(addr++);
+  return read8(addr++) << 8 | tmp8;
+}
+
+void push(uint16_t val) {
+  write8(val >> 8, --SP);
+  write8(val, --SP);
+  tick();
+}
+
+int main() {
+  rom1 = (rom0 = (uint8_t *)mmap(0, 1048576, PROT_READ, MAP_SHARED,
+                                 open("rom.gb", O_RDONLY), 0)) +
+         32768;
+  tmp = open("rom.sav", O_CREAT|O_RDWR, 0666);
+  ftruncate(tmp, 32768);
+  extrambank = extram =
+      (uint8_t *)mmap(0, 32768, PROT_READ | PROT_WRITE, MAP_SHARED, tmp, 0);
+  LCDC = 145;
+  DIV = 44032;
+  SDL_Init(SDL_INIT_VIDEO);
+  SDL_Renderer *renderer = SDL_CreateRenderer(
+      SDL_CreateWindow("pokegb", 0, 0, 800, 720, SDL_WINDOW_SHOWN), -1,
+      SDL_RENDERER_PRESENTVSYNC);
+  SDL_Texture *texture = SDL_CreateTexture(
+      renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 160, 144);
+  key_state = SDL_GetKeyboardState(0);
+
+  while (1) {
+    prev_cycles = cycles;
+    if (IME & IF & io[511]) {
+      IF = halt = IME = 0;
+      cycles += 8;
+      carry = 1;
+      temp16 = 64;
+      goto CALL;
+    } else if (halt)
+      tick();
+    else
+      switch (opcode = read8_pc()) {
+      case 0: // NOP
+        break;
+
+      OP4_NX16_REL(1) // LD r16, u16
+        *reg16_group1[opcode >> 4] = read16();
+        break;
+
+      OP4_NX16_REL(2) // LD (r16), A
+        write8(A, *reg16_group2[opcode >> 4]);
+        HL += HL_add[opcode_rel / 16];
+        break;
+
+      OP4_NX16_REL(3) // INC r16
+        (*reg16_group1[opcode >> 4])++;
+        tick();
+        break;
+
+      OP7_NX8_PTR(4) // INC r8
+        tmp8 = ++(*ptr8);
+        goto INC_FLAGS;
+
+      case 52: // INC (HL)
+        write8(tmp8 = read8() + 1);
+      INC_FLAGS:
+        set_flags(16, tmp8, 0, !(tmp8 & 15), 0);
+        break;
+
+      OP7_NX8_PTR(5) // DEC r8
+        tmp8 = --(*ptr8);
+        goto DEC_FLAGS;
+
+      case 53: // DEC (HL)
+        write8(tmp8 = read8() - 1);
+      DEC_FLAGS:
+        set_flags(16, tmp8, 1, tmp8 % 16 == 15, 0);
+        break;
+
+      OP7_NX8_PTR(6) // LD r8, u8
+        *ptr8 = read8_pc();
+        break;
+
+      case 7: // RLCA
+        A += A + (carry = A >> 7);
+        goto CARRY_FLAG;
+
+      OP4_NX16_REL(9) // ADD HL, r16
+        ptr16 = reg16_group1[opcode >> 4];
+        set_flags(128, 1, 0, HL % 4096 + *ptr16 % 4096 > 4095, HL + *ptr16 > 65535);
+        HL += *ptr16;
+        tick();
+        break;
+
+      OP4_NX16_REL(10) // LD A, (r16)
+        A = read8(*reg16_group2[opcode >> 4]);
+        HL += HL_add[opcode_rel / 16];
+        break;
+
+      OP4_NX16_REL(11) // DEC r16
+        (*reg16_group1[opcode >> 4])--;
+        tick();
+        break;
+
+      case 15: // RRCA
+        A = (carry = A & 1) * 128 + A / 2;
+        goto CARRY_FLAG;
+
+      case 23: // RLA
+        carry = A >> 7;
+        A += A + F / 16 % 2;
+      CARRY_FLAG:
+        set_flags(0, 1, 0, 0, carry);
+        break;
+
+      OP5_FLAG(32, 24) // JR i8 / JR <condition>, i8
+        tmp8 = read8_pc();
+        if (carry)
+          PC += (int8_t)tmp8, tick();
+        break;
+
+      case 39: // DAA
+        carry = tmp8 = 0;
+        if (F & 32 || !(F & 64) && A % 15 > 9)
+          tmp8 = 6;
+        if (F & 16 || !(F & 64) && A > 153)
+          tmp8 |= 96, carry = 1;
+        set_flags(65, A += F & 64 ? -tmp8 : tmp8, 0, 0, carry);
+        break;
+
+      case 47: // CPL
+        A = ~A;
+        set_flags(129, 1, 1, 1, 0);
+        break;
+
+      case 54: // LD (HL), u8
+        write8(read8_pc());
+        break;
+
+      case 55: case 63: // SCF / CCF
+        set_flags(128, 1, 0, 0, opcode == 55 ? 1 : !(F & 16));
+        break;
+
+      OP7_NX8_PTR(70) // LD r8, (HL)
+        *ptr8 = read8();
+        break;
+
+      OP49_REL(64) // LD r8, r8
+        *reg8_group[opcode_rel / 8] = *reg8_group[opcode & 7];
+        break;
+
+      OP7_PTR(112) // LD (HL), r8
+        write8(*ptr8);
+        break;
+
+      case 118: // HALT
+        halt = 1;
+        break;
+
+      OP9_IMM_PTR(128) // ADD A, r8 / ADD A, (HL) / ADD A, u8
+        neg = carry = 0;
+        goto ALU;
+
+      OP9_IMM_PTR(136) // ADC A, r8 / ADC A, (HL) / ADC A, u8
+        neg = 0;
+        carry = F / 16 % 2;
+        goto ALU;
+
+      OP9_IMM_PTR(144) // SUB A, r8 / SUB A, (HL) / SUB A, u8
+        carry = 1;
+        goto SUBTRACT;
+
+      OP9_IMM_PTR(152) // SBC A, r8 / SBC A, (HL) / SBC A, u8
+        carry = !(F / 16 % 2);
+      SUBTRACT:
+        neg = 1;
+        operand = ~operand;
+      ALU:
+        set_flags(0, tmp8 = A + operand + carry, neg,
+                  (A % 16 + operand % 16 + carry > 15) ^ neg,
+                  (A + operand + carry > 255) ^ neg);
+        A = tmp8;
+        break;
+
+      OP9_IMM_PTR(160) // AND A, r8 / AND A, (HL) / AND A, u8
+        set_flags(0, A &= operand, 0, 1, 0);
+        break;
+
+      OP9_IMM_PTR(168) // XOR A, r8 / XOR A, (HL) / XOR A, u8
+        set_flags(0, A ^= operand, 0, 0, 0);
+        break;
+
+      OP9_IMM_PTR(176) // OR A, r8 / OR A, (HL) / OR A, u8
+        set_flags(0, A |= operand, 0, 0, 0);
+        break;
+
+      OP9_IMM_PTR(184) // CP A, r8 / CP A, (HL) / CP A, u8
+        set_flags(0, A != operand, 1, A % 16 < operand % 16, A < operand);
+        break;
+
+      case 217: // RETI
+        carry = IME = 1;
+        goto RET;
+
+      OP5_FLAG(192, 201) // RET / RET <condition>
+      RET:
+        tick();
+        if (carry)
+          PC = read16(SP);
+        break;
+
+      OP4_NX16_REL(193) // POP r16
+        reg16[opcode_rel >> 4] = read16(SP);
+        break;
+
+      OP5_FLAG(194, 195) // JP u16 / JP <condition>, u16
+        temp16 = read16();
+        if (carry)
+          PC = temp16, tick();
+        break;
+
+      OP5_FLAG(196, 205) // CALL u16 / CALL <condition>, u16
+        temp16 = read16();
+      CALL:
+        if (carry)
+          push(PC), PC = temp16;
+        break;
+
+      OP4_NX16_REL(197) // PUSH r16
+        push(reg16[opcode_rel >> 4]);
+        break;
+
+      case 203:
+        switch (opcode = read8_pc()) {
+          OP7_PTR(0) // RLC r8
+            *ptr8 += *ptr8 + (carry = *ptr8 / 128 % 2);
+            goto CARRY_ZERO_FLAGS_PTR;
+
+          OP7_PTR(8) // RRC r8
+            *ptr8 = (carry = *ptr8 & 1) * 128 + *ptr8 / 2;
+            goto CARRY_ZERO_FLAGS_PTR;
+
+          case 14: // RRC (HL)
+            tmp8 = read8();
+            carry = tmp8 & 1;
+            write8(tmp8 = carry * 128 + tmp8 / 2);
+            goto CARRY_ZERO_FLAGS_U;
+
+          OP7_PTR(16) // RL r8
+            carry = *ptr8 >> 7;
+            *ptr8 = *ptr8 * 2 + F / 16 % 2;
+            goto CARRY_ZERO_FLAGS_PTR;
+
+          OP7_PTR(24) // RR r8
+            carry = *ptr8 & 1;
+            *ptr8 = *ptr8 / 2 + (F * 8 & 128);
+            goto CARRY_ZERO_FLAGS_PTR;
+
+          OP7_PTR(32) // SLA r8
+            carry = *ptr8 / 128 % 2;
+            *ptr8 *= 2;
+            goto CARRY_ZERO_FLAGS_PTR;
+
+          OP7_PTR(40) // SRA r8
+            carry = *ptr8 & 1;
+            *ptr8 = (int8_t)*ptr8 >> 1;
+            goto CARRY_ZERO_FLAGS_PTR;
+
+          OP7_PTR(48) // SWAP r8
+            set_flags(0, *ptr8 = *ptr8 * 16 + *ptr8 / 16, 0, 0, 0);
+            break;
+
+          case 54: // SWAP (HL)
+            tmp8 = read8();
+            carry = 0;
+            write8(tmp8 = tmp8 * 16 + tmp8 / 16);
+          CARRY_ZERO_FLAGS_U:
+            set_flags(0, tmp8, 0, 0, carry);
+            break;
+
+          OP7_PTR(56) // SRL r8
+            carry = *ptr8 & 1;
+            *ptr8 /= 2;
+          CARRY_ZERO_FLAGS_PTR:
+            set_flags(0, *ptr8, 0, 0, carry);
+            break;
+
+          OP8_NX8_REL(70) // BIT bit, r8
+            tmp8 = read8();
+            goto BIT_FLAGS;
+
+          OP56_PTR_REL(64) // BIT bit, (HL)
+            tmp8 = *ptr8;
+          BIT_FLAGS:
+            set_flags(16, tmp8 & (1 << opcode_rel / 8), 0, 1, 0);
+            break;
+
+          OP8_NX8_REL(134) // RES bit, (HL)
+            write8(read8() & ~(1 << opcode_rel / 8));
+            break;
+
+          OP56_PTR_REL(128) // RES bit, r8
+            *ptr8 &= ~(1 << opcode_rel / 8);
+            break;
+
+          OP8_NX8_REL(198) // SET bit, (HL)
+            write8(read8() | 1 << opcode_rel / 8);
+            break;
+
+          OP56_PTR_REL(192) // SET bit, r8
+            *ptr8 |= 1 << opcode_rel / 8;
+            break;
+        }
+        break;
+
+      case 224: case 226: // LD (FF00 + u8), A / LD (FF00 + C), A
+        write8(A, 65280 + (opcode == 224 ? read8_pc() : *reg8));
+        break;
+
+      case 233: // JP HL
+        PC = HL;
+        break;
+
+      case 234: // LD (u16), A
+        write8(A, read16());
+        break;
+
+      case 240: case 250: // LD A, (FF00 + u8) / LD A, (u16)
+        A = read8(opcode == 240 ? 65280 | read8_pc() : read16());
+        break;
+
+      case 243: case 251: // DI / EI
+        IME = opcode != 243;
+        break;
+
+      case 248: // LD HL, SP + i8
+        tmp8 = read8_pc();
+        set_flags(0, 1, 0, (uint8_t)SP + tmp8 > 255, SP % 16 + tmp8 % 16 > 15);
+        HL = SP + (int8_t)tmp8;
+        tick();
+        break;
+
+      case 249: // LD SP, HL
+        SP = HL;
+        tick();
+        break;
+      }
+
+    for (DIV += cycles - prev_cycles; prev_cycles++ != cycles;)
+      if (LCDC & 128) {
+        if (++ppu_dot == 1 && LY == 144)
+          IF |= 1;
+
+        if (ppu_dot == 456) {
+          if (LY < 144)
+            for (tmp = 160; --tmp >= 0;) {
+              uint8_t is_window =
+                          LCDC & 32 && LY >= io[330] && tmp >= io[331] - 7,
+                      x_offset = is_window ? tmp - io[331] + 7 : tmp + io[323],
+                      y_offset = is_window ? LY - io[330] : LY + io[322];
+              uint16_t tile = video_ram[((LCDC & (is_window ? 64 : 8) ? 7 : 6)
+                                         << 10) +
+                                        y_offset / 8 * 32 + x_offset / 8],
+                       palette_index = 0;
+
+              x_offset = (x_offset ^ 7) & 7;
+
+              uint8_t
+                  *tile_data =
+                      &video_ram[(LCDC & 16 ? tile : 256 + (int8_t)tile) * 16 +
+                                 y_offset % 8 * 2],
+                  color = (tile_data[1] >> x_offset) % 2 * 2 +
+                          (*tile_data >> x_offset) % 2;
+
+              if (LCDC & 2)
+                for (uint8_t *sprite = io; sprite < io + 160; sprite += 4) {
+                  uint8_t sprite_x = tmp - sprite[1] + 8,
+                          sprite_y = LY - *sprite + 16;
+                  if (sprite_x < 8 && sprite_y < 8) {
+                    sprite_x ^= sprite[3] & 32 ? 0 : 7;
+
+                    tile_data =
+                        &video_ram[sprite[2] * 16 +
+                                   (sprite_y ^ (sprite[3] & 64 ? 7 : 0)) * 2];
+                    uint8_t sprite_color = (tile_data[1] >> sprite_x) % 2 * 2 +
+                                           (*tile_data >> sprite_x) % 2;
+
+                    if (!((sprite[3] & 128) && color) && sprite_color) {
+                      color = sprite_color;
+                      palette_index += 1 + !!(sprite[3] & 8);
+                      break;
+                    }
+                  }
+                }
+
+              frame_buffer[LY * 160 + tmp] =
+                  palette[(io[327 + palette_index] >> (2 * color)) % 4 +
+                          palette_index * 4];
+            }
+
+          if (LY == 144) {
+            void *pixels;
+            SDL_LockTexture(texture, 0, &pixels, &tmp);
+            for (tmp2 = 144; --tmp2 >= 0;)
+              memcpy((uint8_t *)pixels + tmp2 * tmp, frame_buffer + tmp2 * 160,
+                     640);
+            SDL_UnlockTexture(texture);
+            SDL_RenderCopy(renderer, texture, 0, 0);
+            SDL_RenderPresent(renderer);
+            SDL_Event event;
+            while (SDL_PollEvent(&event))
+              if (event.type == SDL_QUIT)
+                return 0;
+          }
+
+          LY = (LY + 1) % 154;
+          ppu_dot = 0;
+        }
+      } else
+        LY = ppu_dot = 0;
+  }
+}
