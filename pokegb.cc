@@ -4,16 +4,14 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#define OP4_NX8(_) case _: case _ + 8: case _ + 16: case _ + 24:
+#define OP4_NX8(_,X) case _: case _ + 8*X: case _ + 16*X: case _ + 24*X:
 
-#define OP4_NX16_REL(_)                                                        \
-  case _: case _ + 16: case _ + 32: case _ + 48:                               \
-    opcrel = (opcode - _)/16;
+#define OP4_NX16_REL(_) OP4_NX8(_, 2) opcrel = (opcode - _) / 16;
 
 #define OP5_FLAG(_, always)                                                    \
-  OP4_NX8(_)                                                                   \
+  OP4_NX8(_, 1)                                                                \
   case always:                                                                 \
-    carry = (opcode == always) ||                                              \
+    carry = opcode == always ||                                                \
             (F & F_mask[(opcode - _) / 8]) == F_equals[(opcode - _) / 8];
 
 #define OP8_REL(_)                                                             \
@@ -21,7 +19,7 @@
     tmp8 = reg8_access(0, 0, opcrel = opcode);
 
 #define OP8_NX8_REL(_)                                                         \
-  OP4_NX8(_) OP4_NX8(_ + 32)                                                   \
+  OP4_NX8(_,1) OP4_NX8(_ + 32, 1)                                              \
     tmp8 = reg8_access(0, 0, opcrel = (opcode - _) / 8);
 
 #define OP64_REL(_)                                                            \
@@ -173,11 +171,9 @@ int main() {
       tick();
     else
       switch (opcode = read8_pc()) {
-      case 0: // NOP
-        break;
-
       OP4_NX16_REL(1) // LD r16, u16
         *reg16_group1[opcrel] = read16();
+      case 0: // NOP
         break;
 
       OP4_NX16_REL(2) // LD (r16), A
@@ -340,7 +336,7 @@ int main() {
       case 203:
         switch (opcode = read8_pc()) {
           OP8_REL(0) // RLC r8 / RLC (HL)
-            reg8_access(tmp8 += tmp8 + (carry = tmp8 / 128 % 2));
+            reg8_access(tmp8 += tmp8 + (carry = tmp8 >> 7));
             goto CARRY_ZERO_FLAGS_U;
 
           OP8_REL(8) // RRC r8 / RRC (HL)
@@ -358,7 +354,7 @@ int main() {
             goto CARRY_ZERO_FLAGS_U;
 
           OP8_REL(32) // SLA r8 / SLA (HL)
-            carry = tmp8 / 128 % 2;
+            carry = tmp8 >> 7;
             reg8_access(tmp8 *= 2);
             goto CARRY_ZERO_FLAGS_U;
 
@@ -388,7 +384,6 @@ int main() {
 
           OP64_REL(192) // SET bit, r8 / SET bit, (HL)
             reg8_access(tmp8 | 1 << opcrel,1,opcode);
-            break;
         }
         break;
 
@@ -413,16 +408,14 @@ int main() {
         break;
 
       case 248: // LD HL, SP + i8
-        tmp8 = read8_pc();
+        HL = SP + (int8_t)(tmp8 = read8_pc());
         set_flags(0, 1, 0, (uint8_t)SP + tmp8 > 255, SP % 16 + tmp8 % 16 > 15);
-        HL = SP + (int8_t)tmp8;
         tick();
         break;
 
       case 249: // LD SP, HL
         SP = HL;
         tick();
-        break;
       }
 
     for (DIV += cycles - prev_cycles; prev_cycles++ != cycles;)
