@@ -7,10 +7,7 @@
 #define OP4_NX8(_) case _: case _ + 8: case _ + 16: case _ + 24:
 
 #define OP4_NX16_REL(_)                                                        \
-  case _:                                                                      \
-  case _ + 16:                                                                 \
-  case _ + 32:                                                                 \
-  case _ + 48:                                                                 \
+  case _: case _ + 16: case _ + 32: case _ + 48:                               \
     opcrel = (opcode - _)/16;
 
 #define OP5_FLAG(_, always)                                                    \
@@ -19,41 +16,21 @@
     carry = (opcode == always) ||                                              \
             (F & F_mask[(opcode - _) / 8]) == F_equals[(opcode - _) / 8];
 
-#define OP8_NX8_REL(_) OP4_NX8(_) OP4_NX8(_ + 32) opcrel = (opcode - _)/8;
+#define OP8_REL(_)                                                             \
+  case _ ... _ + 7:                                                            \
+    tmp8 = reg8_access(0, 0, opcrel = opcode);
 
-#define OP7_PTR(_)                                                             \
-  case _:                                                                      \
-  case _ + 1:                                                                  \
-  case _ + 2:                                                                  \
-  case _ + 3:                                                                  \
-  case _ + 4:                                                                  \
-  case _ + 5:                                                                  \
-  case _ + 7:                                                                  \
-    ptr8 = reg8_group[opcode & 7];
+#define OP8_NX8_REL(_)                                                         \
+  OP4_NX8(_) OP4_NX8(_ + 32)                                                   \
+    tmp8 = reg8_access(0, 0, opcrel = (opcode - _) / 8);
 
-#define OP7_NX8(_) OP4_NX8(_) case _ + 32 : case _ + 40 : case _ + 56:
-
-#define OP7_NX8_PTR(_) OP7_NX8(_) ptr8 = reg8_group[(opcode - _) / 8];
-
-#define OP49_REL(_)                                                            \
-  OP7_NX8(_)                                                                   \
-  OP7_NX8(_ + 1)                                                               \
-  OP7_NX8(_ + 2)                                                               \
-  OP7_NX8(_ + 3)                                                               \
-  OP7_NX8(_ + 4)                                                               \
-  OP7_NX8(_ + 5)                                                               \
-  OP7_NX8(_ + 7)                                                               \
-  opcrel = opcode - _;
-
-#define OP56_PTR_REL(_) OP49_REL(_) OP7_PTR(_ + 48) opcrel = (opcode - _)/8;
+#define OP64_REL(_)                                                            \
+  case _ ... _ + 55: OP8_REL(_ + 56)                                           \
+    opcrel = (opcode - _) / 8;
 
 #define OP9_IMM_PTR(_)                                                         \
-  case _ + 6:                                                                  \
-  case _ + 70:                                                                 \
-    OP7_PTR(_)                                                                 \
-    operand = (opcode == _ + 6)    ? read8()                                   \
-              : (opcode == _ + 70) ? read8_pc()                                \
-                                   : *ptr8;
+  OP8_REL(_) case _ + 70:                                                      \
+    operand = opcode == _ + 70 ? read8_pc() : tmp8;
 
 uint8_t opcode, opcrel, tmp8, operand, carry, neg, *rom0, *rom1, io[512], video_ram[8192],
     work_ram[16384], *extram, *extrambank,
@@ -160,6 +137,12 @@ void push(uint16_t val) {
   tick();
 }
 
+uint8_t reg8_access(uint8_t val, int write = 1, uint8_t o = opcrel) {
+  return (o &= 7) == 6 ? mem_access(HL, val, write)
+         : write       ? *reg8_group[o] = val
+                       : *reg8_group[o];
+}
+
 int main() {
   rom1 = (rom0 = (uint8_t *)mmap(0, 1048576, PROT_READ, MAP_SHARED,
                                  open("rom.gb", O_RDONLY), 0)) +
@@ -207,28 +190,18 @@ int main() {
         tick();
         break;
 
-      OP7_NX8_PTR(4) // INC r8
-        tmp8 = ++(*ptr8);
-        goto INC_FLAGS;
-
-      case 52: // INC (HL)
-        write8(tmp8 = read8() + 1);
-      INC_FLAGS:
+      OP8_NX8_REL(4) // INC r8 / INC (HL)
+        reg8_access(++tmp8);
         set_flags(16, tmp8, 0, !(tmp8 & 15), 0);
         break;
 
-      OP7_NX8_PTR(5) // DEC r8
-        tmp8 = --(*ptr8);
-        goto DEC_FLAGS;
-
-      case 53: // DEC (HL)
-        write8(tmp8 = read8() - 1);
-      DEC_FLAGS:
+      OP8_NX8_REL(5) // DEC r8 / DEC (HL)
+        reg8_access(--tmp8);
         set_flags(16, tmp8, 1, tmp8 % 16 == 15, 0);
         break;
 
-      OP7_NX8_PTR(6) // LD r8, u8
-        *ptr8 = read8_pc();
+      OP8_NX8_REL(6) // LD r8, u8 / LD (HL), u8
+        reg8_access(read8_pc());
         break;
 
       case 7: // RLCA
@@ -283,28 +256,12 @@ int main() {
         set_flags(129, 1, 1, 1, 0);
         break;
 
-      case 54: // LD (HL), u8
-        write8(read8_pc());
-        break;
-
       case 55: case 63: // SCF / CCF
         set_flags(128, 1, 0, 0, opcode == 55 ? 1 : !(F & 16));
         break;
 
-      OP7_NX8_PTR(70) // LD r8, (HL)
-        *ptr8 = read8();
-        break;
-
-      OP49_REL(64) // LD r8, r8
-        *reg8_group[opcrel / 8] = *reg8_group[opcode & 7];
-        break;
-
-      OP7_PTR(112) // LD (HL), r8
-        write8(*ptr8);
-        break;
-
-      case 118: // HALT
-        halt = 1;
+      OP64_REL(64) // LD r8, r8 / LD r8, (HL) / LD (HL), r8 / HALT
+        opcode == 118 ? halt = 1 : reg8_access(tmp8, 1);
         break;
 
       OP9_IMM_PTR(128) // ADD A, r8 / ADD A, (HL) / ADD A, u8
@@ -382,83 +339,55 @@ int main() {
 
       case 203:
         switch (opcode = read8_pc()) {
-          OP7_PTR(0) // RLC r8
-            *ptr8 += *ptr8 + (carry = *ptr8 / 128 % 2);
-            goto CARRY_ZERO_FLAGS_PTR;
-
-          OP7_PTR(8) // RRC r8
-            *ptr8 = (carry = *ptr8 & 1) * 128 + *ptr8 / 2;
-            goto CARRY_ZERO_FLAGS_PTR;
-
-          case 14: // RRC (HL)
-            tmp8 = read8();
-            carry = tmp8 & 1;
-            write8(tmp8 = carry * 128 + tmp8 / 2);
+          OP8_REL(0) // RLC r8 / RLC (HL)
+            reg8_access(tmp8 += tmp8 + (carry = tmp8 / 128 % 2));
             goto CARRY_ZERO_FLAGS_U;
 
-          OP7_PTR(16) // RL r8
-            carry = *ptr8 >> 7;
-            *ptr8 = *ptr8 * 2 + F / 16 % 2;
-            goto CARRY_ZERO_FLAGS_PTR;
+          OP8_REL(8) // RRC r8 / RRC (HL)
+            reg8_access(tmp8 = (carry = tmp8 & 1) * 128 + tmp8 / 2);
+            goto CARRY_ZERO_FLAGS_U;
 
-          OP7_PTR(24) // RR r8
-            carry = *ptr8 & 1;
-            *ptr8 = *ptr8 / 2 + (F * 8 & 128);
-            goto CARRY_ZERO_FLAGS_PTR;
+          OP8_REL(16) // RL r8 / RL (HL)
+            carry = tmp8 >> 7;
+            reg8_access(tmp8 += tmp8 + F / 16 % 2);
+            goto CARRY_ZERO_FLAGS_U;
 
-          OP7_PTR(32) // SLA r8
-            carry = *ptr8 / 128 % 2;
-            *ptr8 *= 2;
-            goto CARRY_ZERO_FLAGS_PTR;
+          OP8_REL(24) // RR r8 / RR (HL)
+            carry = tmp8 & 1;
+            reg8_access(tmp8 = tmp8 / 2 + (F * 8 & 128));
+            goto CARRY_ZERO_FLAGS_U;
 
-          OP7_PTR(40) // SRA r8
-            carry = *ptr8 & 1;
-            *ptr8 = (int8_t)*ptr8 >> 1;
-            goto CARRY_ZERO_FLAGS_PTR;
+          OP8_REL(32) // SLA r8 / SLA (HL)
+            carry = tmp8 / 128 % 2;
+            reg8_access(tmp8 *= 2);
+            goto CARRY_ZERO_FLAGS_U;
 
-          OP7_PTR(48) // SWAP r8
-            set_flags(0, *ptr8 = *ptr8 * 16 + *ptr8 / 16, 0, 0, 0);
-            break;
+          OP8_REL(40) // SRA r8 / SRA (HL)
+            carry = tmp8 & 1;
+            reg8_access(tmp8 = (int8_t)tmp8 >> 1);
+            goto CARRY_ZERO_FLAGS_U;
 
-          case 54: // SWAP (HL)
-            tmp8 = read8();
+          OP8_REL(48) // SWAP r8 / SWAP (HL)
             carry = 0;
-            write8(tmp8 = tmp8 * 16 + tmp8 / 16);
+            reg8_access(tmp8 = tmp8 * 16 + tmp8 / 16);
           CARRY_ZERO_FLAGS_U:
             set_flags(0, tmp8, 0, 0, carry);
             break;
 
-          OP7_PTR(56) // SRL r8
-            carry = *ptr8 & 1;
-            *ptr8 /= 2;
-          CARRY_ZERO_FLAGS_PTR:
-            set_flags(0, *ptr8, 0, 0, carry);
+          OP8_REL(56) // SRL r8 / SRL (HL)
+            set_flags(0, reg8_access(tmp8 / 2), 0, 0, tmp8 & 1);
             break;
 
-          OP8_NX8_REL(70) // BIT bit, r8
-            tmp8 = read8();
-            goto BIT_FLAGS;
-
-          OP56_PTR_REL(64) // BIT bit, (HL)
-            tmp8 = *ptr8;
-          BIT_FLAGS:
+          OP64_REL(64) // BIT bit, r8 / BIT bit, (HL)
             set_flags(16, tmp8 & 1 << opcrel, 0, 1, 0);
             break;
 
-          OP8_NX8_REL(134) // RES bit, (HL)
-            write8(read8() & ~(1 << opcrel));
+          OP64_REL(128) // RES bit, r8 / RES bit, (HL)
+            reg8_access(tmp8 & ~(1 << opcrel),1,opcode);
             break;
 
-          OP56_PTR_REL(128) // RES bit, r8
-            *ptr8 &= ~(1 << opcrel);
-            break;
-
-          OP8_NX8_REL(198) // SET bit, (HL)
-            write8(read8() | 1 << opcrel);
-            break;
-
-          OP56_PTR_REL(192) // SET bit, r8
-            *ptr8 |= 1 << opcrel;
+          OP64_REL(192) // SET bit, r8 / SET bit, (HL)
+            reg8_access(tmp8 | 1 << opcrel,1,opcode);
             break;
         }
         break;
