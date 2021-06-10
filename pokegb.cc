@@ -4,6 +4,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#define OPCREL(_) opcrel = (opcode - _) / 8
+
 #define OP4_NX8(_,X) case _: case _ + 8*X: case _ + 16*X: case _ + 24*X:
 
 #define OP4_NX16_REL(_) OP4_NX8(_, 2) opcrel = (opcode - _) / 16;
@@ -11,20 +13,17 @@
 #define OP5_FLAG(_, always)                                                    \
   OP4_NX8(_, 1)                                                                \
   case always:                                                                 \
-    opcrel = (opcode - _) / 8,                                                 \
-    carry = opcode == always || !(F & F_mask[opcrel]) ^ opcrel & 1;
+    OPCREL(_), carry = opcode == always || !(F & F_mask[opcrel]) ^ opcrel & 1;
 
 #define OP8_REL(_)                                                             \
   case _ ... _ + 7:                                                            \
     tmp8 = reg8_access(0, 0, opcrel = opcode);
 
 #define OP8_NX8_REL(_)                                                         \
-  OP4_NX8(_,1) OP4_NX8(_ + 32, 1)                                              \
-    tmp8 = reg8_access(0, 0, opcrel = (opcode - _) / 8);
+  OP4_NX8(_, 1) OP4_NX8(_ + 32, 1) tmp8 = reg8_access(0, 0, OPCREL(_));
 
 #define OP64_REL(_)                                                            \
-  case _ ... _ + 55: OP8_REL(_ + 56)                                           \
-    opcrel = (opcode - _) / 8;
+  case _ ... _ + 55: OP8_REL(_ + 56) OPCREL(_);
 
 #define OP9_IMM_PTR(_)                                                         \
   OP8_REL(_) case _ + 70 : operand = opcode & 64 ? mem8(PC++) : tmp8;
@@ -132,6 +131,11 @@ uint8_t reg8_access(uint8_t val, int write = 1, uint8_t o = opcrel) {
                        : *reg8_group[o];
 }
 
+uint8_t get_color(int tile, int y_offset, int x_offset) {
+  uint8_t *tile_data = &video_ram[tile * 16 + y_offset * 2];
+  return (tile_data[1] >> x_offset) % 2 * 2 + (*tile_data >> x_offset) % 2;
+}
+
 int main() {
   rom1 = (rom0 = (uint8_t *)mmap(0, 1 << 20, PROT_READ, MAP_SHARED,
                                  open("rom.gb", O_RDONLY), 0)) +
@@ -226,7 +230,7 @@ int main() {
         break;
 
       OP64_REL(64) // LD r8, r8 / LD r8, (HL) / LD (HL), r8 / HALT
-        opcode == 118 ? halt = 1 : reg8_access(tmp8, 1);
+        opcode == 118 ? halt = 1 : reg8_access(tmp8);
         break;
 
       OP9_IMM_PTR(128) // ADD A, r8 / ADD A, (HL) / ADD A, u8
@@ -376,57 +380,43 @@ int main() {
 
     for (DIV += cycles - prev_cycles; prev_cycles++ != cycles;)
       if (LCDC & 128) {
-        if (++ppu_dot == 1 && LY == 144)
-          IF |= 1;
-
-        if (ppu_dot == 456) {
+        if (++ppu_dot == 456) {
           if (LY < 144)
             for (tmp = 160; --tmp >= 0;) {
               uint8_t is_window =
                           LCDC & 32 && LY >= io[330] && tmp >= io[331] - 7,
                       x_offset = is_window ? tmp - io[331] + 7 : tmp + io[323],
                       y_offset = is_window ? LY - io[330] : LY + io[322];
-              uint16_t tile = video_ram[((LCDC & (is_window ? 64 : 8) ? 7 : 6)
-                                         << 10) +
-                                        y_offset / 8 * 32 + x_offset / 8],
-                       palette_index = 0;
-
-              x_offset = (x_offset ^ 7) & 7;
-
-              uint8_t
-                  *tile_data =
-                      &video_ram[(LCDC & 16 ? tile : 256 + (int8_t)tile) * 16 +
-                                 y_offset % 8 * 2],
-                  color = (tile_data[1] >> x_offset) % 2 * 2 +
-                          (*tile_data >> x_offset) % 2;
+              uint16_t
+                  palette_index = 0,
+                  tile = video_ram[(LCDC & (is_window ? 64 : 8) ? 7 : 6) << 10 |
+                                   y_offset / 8 * 32 + x_offset / 8],
+                  color = get_color(LCDC & 16 ? tile : 256 + (int8_t)tile,
+                                    y_offset & 7, 7 - x_offset & 7);
 
               if (LCDC & 2)
                 for (uint8_t *sprite = io; sprite < io + 160; sprite += 4) {
                   uint8_t sprite_x = tmp - sprite[1] + 8,
-                          sprite_y = LY - *sprite + 16;
-                  if (sprite_x < 8 && sprite_y < 8) {
-                    sprite_x ^= sprite[3] & 32 ? 0 : 7;
-
-                    tile_data =
-                        &video_ram[sprite[2] * 16 +
-                                   (sprite_y ^ (sprite[3] & 64 ? 7 : 0)) * 2];
-                    uint8_t sprite_color = (tile_data[1] >> sprite_x) % 2 * 2 +
-                                           (*tile_data >> sprite_x) % 2;
-
-                    if (!((sprite[3] & 128) && color) && sprite_color) {
-                      color = sprite_color;
-                      palette_index += 1 + !!(sprite[3] & 8);
-                      break;
-                    }
+                          sprite_y = LY - *sprite + 16,
+                          sprite_color = get_color(
+                              sprite[2], sprite_y ^ (sprite[3] & 64 ? 7 : 0),
+                              sprite_x ^ (sprite[3] & 32 ? 0 : 7));
+                  if (sprite_x < 8 && sprite_y < 8 &&
+                      !(sprite[3] & 128 && color) && sprite_color) {
+                    color = sprite_color;
+                    palette_index = 1 + !!(sprite[3] & 8);
+                    break;
                   }
                 }
 
               frame_buffer[LY * 160 + tmp] =
-                  palette[(io[327 + palette_index] >> (2 * color)) % 4 +
-                          palette_index * 4 & 7];
+                  palette[(io[327 + palette_index] >> 2 * color) % 4 +
+                              palette_index * 4 &
+                          7];
             }
 
-          if (LY == 144) {
+          if (LY == 143) {
+            IF |= 1;
             void *pixels;
             SDL_LockTexture(texture, 0, &pixels, &tmp);
             for (tmp2 = 144; --tmp2 >= 0;)
