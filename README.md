@@ -1,6 +1,6 @@
 # pokegb
 
-A gameboy emulator that only plays Pokemon Blue, in ~70 lines of c++.
+A gameboy emulator that only plays Pokemon Blue, in ~50 lines of c++.
 
 See the [technical write-up](https://binji.github.io/posts/pokegb/).
 
