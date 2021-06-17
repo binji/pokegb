@@ -24,7 +24,16 @@ $ make rom.sav
 
 ## Running
 
-Put Pokemon Blue in `rom.gb`, then run:
+Get a Pokemon Blue (or Pokemon Red) ROM file. The files that are known to work have the following sha1s:
+
+| Name | sha1 |
+| - | - |
+| Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb | `d7037c83e1ae5b39bde3c30787637ba1d4c48ce2` |
+| Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb | `ea9bcae617fdf159b045185467ae58b2e4a48b9a` |
+
+Others might work too, but these are the ones that I've tried.
+
+Rename the file to `rom.gb` and put it in the current directory. Then run:
 
 ```
 $ ./pokegb
