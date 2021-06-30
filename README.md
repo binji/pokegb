@@ -56,7 +56,7 @@ Keys:
 
 ## Updating keys
 
-Look for [line 30](https://github.com/binji/pokegb/blob/9c03ea41714b24373a352f75d27b0dc86a5b2250/pokegb.cc#L30) the source.
+Look for [line 24](https://github.com/binji/pokegb/blob/5444936aa7f12cb8c5c9c78e3c0c391ca4102f9b/pokegb.cc#L24) the source.
 The following table shows which numbers map to which keyboard keys:
 
 | number | default key | gameboy button |
