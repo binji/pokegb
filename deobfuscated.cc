@@ -187,7 +187,7 @@ int main() {
       OP8_NX8_REL(4) // INC r8 / INC (HL)
         neg = opcode & 1;
         reg8_access(tmp8 += 1 - neg * 2);
-        set_flags(16, tmp8, neg, !(tmp8 & 15) ^ neg, 0);
+        set_flags(16, tmp8, neg, !(tmp8 + neg & 15), 0);
         break;
 
       OP8_NX8_REL(6) // LD r8, u8 / LD (HL), u8
@@ -213,7 +213,7 @@ int main() {
 
       case 39: // DAA
         carry = tmp8 = 0;
-        if (F & 32 || ~F & 64 && A % 15 > 9)
+        if (F & 32 || ~F & 64 && A % 16 > 9)
           tmp8 = 6;
         if (F & 16 || ~F & 64 && A > 153)
           tmp8 |= 96, carry = 1;
@@ -222,7 +222,7 @@ int main() {
 
       case 47: // CPL
         A = ~A;
-        set_flags(129, 1, 1, 1, 0);
+        set_flags(144, 1, 1, 1, 0);
         break;
 
       case 55: case 63: // SCF / CCF
@@ -369,7 +369,7 @@ int main() {
 
       case 248: // LD HL, SP + i8
         HL = SP + (int8_t)(tmp8 = mem8(PC++));
-        set_flags(0, 1, 0, (uint8_t)SP + tmp8 > 255, SP % 16 + tmp8 % 16 > 15);
+        set_flags(0, 1, 0, SP % 16 + tmp8 % 16 > 15, (uint8_t)SP + tmp8 > 255);
         tick();
         break;
 
