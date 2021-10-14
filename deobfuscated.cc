@@ -404,7 +404,7 @@ int main() {
                   if (sprite_x < 8 && sprite_y < 8 &&
                       !(sprite[3] & 128 && color) && sprite_color) {
                     color = sprite_color;
-                    palette_index = 1 + !!(sprite[3] & 8);
+                    palette_index = 1 + !!(sprite[3] & 16);
                     break;
                   }
                 }

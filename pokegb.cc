@@ -45,6 +45,6 @@ k++);J:;;          switch       (b){           o(0)o(16)o(32)d=a>>          7;a+
        0;){g b=z&32&&s            >=h[330]&&c>=h[              331]-7,d=b?c-h[            331]+7:c+h[323]              ,R=b?s-h[330]:s            +h[322];x f=0,i
          =Z[(z&(b?64:8)?7:6)<<10|R/8*32+d/8],j=                  ah(z&16?i:256+(int8_t)i,R&7,7-d&7);if(                  z&2)for(g*a=h;a<h+160;a+=4){g k=c-a[1]
            +8,l=s-*a+16,m=ah(a[2],l^(a[3]&64?                      7:0),k^(a[3]&32?0:7));if(k<8&&l<8&&                     !(a[3]&128&&j)&&m){j=m;f=1+!!(a[3]
-             &8);K}}ag[s*160+c]=ak[(h[327+f                          ]>>2*j)%4+f*4&7];}if(s==143){H                         |=1;SDL_Event b;SDL_UpdateTexture
+            &16);K}}ag[s*160+c]=ak[(h[327+f                          ]>>2*j)%4+f*4&7];}if(s==143){H                         |=1;SDL_Event b;SDL_UpdateTexture
               (ab,0,ag,640);SDL_RenderCopy                            (aa,ab,0,0);SDL_RenderPresent                            (aa);for(;SDL_PollEvent(&b
                    );)if(b.type==256                                       )E 0;}s=(s+1)%154;                                      W=0;}}else s=W=0;}}
