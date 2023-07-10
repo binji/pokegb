@@ -8,6 +8,22 @@ See the [technical write-up](https://binji.github.io/posts/pokegb/).
 
 Plays Pokemon Blue (and Red).
 
+## Screenshots
+
+![1](img/o1.gif)
+![2](img/o2.gif)
+![3](img/o3.gif)
+![4](img/o4.gif)
+![5](img/o5.gif)
+![6](img/o6.gif)
+![7](img/o7.gif)
+![8](img/o8.gif)
+![9](img/o9.gif)
+![10](img/o10.gif)
+![11](img/o11.gif)
+
+![Source Code](img/pokegb.png)
+
 ## Building
 
 Only builds on Linux and macOS AFAIK.
