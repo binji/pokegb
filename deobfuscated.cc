@@ -41,7 +41,7 @@ Uint16 PC = 256, *reg16 = (Uint16 *)reg8, &HL = reg16[2], SP = 65534,
 int tmp, delay, F_mask[] = {128, 128, 16, 16}, frame_buffer[23040],
                palette[] = {-1, -23197,   -65536,    -1 << 24,
                             -1, -8092417, -12961132, -1 << 24};
-double speed_compensation;
+double comp;
 Uint64 ot, nt;
 
 void tick() { cycles += 4; }
@@ -136,14 +136,13 @@ Uint8 get_color(int tile, int y_offset, int x_offset) {
 
 int main(int, char**) {
   rom1 = (rom0 = (Uint8 *)SDL_LoadFile("rom.gb", NULL)) + 32768;
-  if(!rom0) return -1;
   extrambank = extram = (Uint8 *)SDL_realloc(SDL_LoadFile("rom.sav", NULL), 32768);
   LCDC = 145;
   DIV = 44032;
   SDL_Init(SDL_INIT_VIDEO);
   SDL_Renderer *renderer = SDL_CreateRenderer(
-      SDL_CreateWindow("pokegb", 0, 0, 800, 720, SDL_WINDOW_SHOWN), -1,
-      SDL_RENDERER_PRESENTVSYNC);
+      SDL_CreateWindow("pokegb", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+              800, 720, SDL_WINDOW_SHOWN), -1, SDL_RENDERER_PRESENTVSYNC);
   SDL_Texture *texture = SDL_CreateTexture(
       renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 160, 144);
   key_state = SDL_GetKeyboardState(0);
@@ -424,9 +423,7 @@ int main(int, char**) {
                 return 0;
               }
             nt = SDL_GetTicks64();
-            speed_compensation += 16.7427 - (nt - ot);
-            delay = (int)(speed_compensation);
-            speed_compensation -= delay;
+            comp -= delay = comp += 16.7427 - (nt - ot);
             ot = nt;
             if(delay > 0)
               SDL_Delay(delay);
