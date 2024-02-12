@@ -1,8 +1,4 @@
-#include <SDL2/SDL.h>
-#include <cstdint>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
+#include "SDL.h"
 
 #define OPCREL(_) opcrel = (opcode - _) / 8
 
@@ -136,14 +132,10 @@ uint8_t get_color(int tile, int y_offset, int x_offset) {
   return (tile_data[1] >> x_offset) % 2 * 2 + (*tile_data >> x_offset) % 2;
 }
 
-int main() {
-  rom1 = (rom0 = (uint8_t *)mmap(0, 1 << 20, PROT_READ, MAP_SHARED,
-                                 open("rom.gb", O_RDONLY), 0)) +
-         32768;
-  tmp = open("rom.sav", O_CREAT|O_RDWR, 0666);
-  ftruncate(tmp, 32768);
-  extrambank = extram =
-      (uint8_t *)mmap(0, 32768, PROT_READ | PROT_WRITE, MAP_SHARED, tmp, 0);
+int main(int, char**) {
+  rom1 = (rom0 = (uint8_t *)SDL_LoadFile("rom.gb", NULL)) + 32768;
+  if(!rom0) return -1;
+  extrambank = extram = (uint8_t *)SDL_realloc(SDL_LoadFile("rom.sav", NULL), 32768);
   LCDC = 145;
   DIV = 44032;
   SDL_Init(SDL_INIT_VIDEO);
@@ -422,8 +414,12 @@ int main() {
             SDL_RenderPresent(renderer);
             SDL_Event event;
             while (SDL_PollEvent(&event))
-              if (event.type == SDL_QUIT)
+              if (event.type == SDL_QUIT) {
+                SDL_RWops *sav = SDL_RWFromFile("rom.sav", "wb");
+                SDL_RWwrite(sav, extram, 1, 32768);
+                SDL_RWclose(sav);
                 return 0;
+              }
           }
 
           LY = (LY + 1) % 154;
