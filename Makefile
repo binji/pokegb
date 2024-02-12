@@ -1,8 +1,11 @@
-pokegb: pokegb.cc
-	$(CC) -O2 -Wall -Wno-return-type -Wno-misleading-indentation -Wno-parentheses -o $@ $< -lSDL2
+CXXFLAGS := -Os -s -Wall -Wno-return-type -Wno-misleading-indentation -Wno-parentheses
+override CXXFLAGS += $(shell pkg-config sdl2 --cflags)
+override LDLIBS += $(shell pkg-config sdl2 --libs)
+
+all: pokegb deobfuscated
 
 rom.sav: empty.sav
 	cp $< $@
 
 clean:
-	rm -f pokegb rom.sav
+	$(RM) pokegb rom.sav
