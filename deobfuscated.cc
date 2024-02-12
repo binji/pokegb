@@ -425,8 +425,10 @@ int main(int, char**) {
             nt = SDL_GetTicks64();
             comp -= delay = comp += 16.7427 - (nt - ot);
             ot = nt;
-            if(delay > 0)
+            if(delay > 0) {
               SDL_Delay(delay);
+              ot = SDL_GetTicks64();
+	    }
           }
 
           LY = (LY + 1) % 154;
