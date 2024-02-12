@@ -24,17 +24,17 @@
 #define OP9_IMM_PTR(_)                                                         \
   OP8_REL(_) case _ + 70 : operand = opcode & 64 ? mem8(PC++) : tmp8;
 
-uint8_t opcode, opcrel, tmp8, operand, carry, neg, *rom0, *rom1, io[512],
+Uint8 opcode, opcrel, tmp8, operand, carry, neg, *rom0, *rom1, io[512],
     video_ram[8192], work_ram[16384], *extram, *extrambank,
     reg8[] = {19, 0, 216, 0, 77, 1, 176, 1}, &F = reg8[6], &A = reg8[7],
     *reg8_group[] = {reg8 + 1, reg8,     reg8 + 3, reg8 + 2,
                      reg8 + 5, reg8 + 4, &F,       &A},
     &IF = io[271], &LCDC = io[320], &LY = io[324], IME, halt;
 
-uint8_t const *key_state;
+Uint8 const *key_state;
 
-uint16_t PC = 256, *reg16 = (uint16_t *)reg8, &HL = reg16[2], SP = 65534,
-         &DIV = (uint16_t &)io[259], ppu_dot = 32,
+Uint16 PC = 256, *reg16 = (Uint16 *)reg8, &HL = reg16[2], SP = 65534,
+         &DIV = (Uint16 &)io[259], ppu_dot = 32,
          *reg16_group1[] = {reg16, reg16 + 1, &HL, &SP},
          *reg16_group2[] = {reg16, reg16 + 1, &HL, &HL}, prev_cycles, cycles;
 
@@ -46,7 +46,7 @@ Uint64 ot, nt;
 
 void tick() { cycles += 4; }
 
-uint8_t mem8(uint16_t addr = HL, uint8_t val = 0, int write = 0) {
+Uint8 mem8(Uint16 addr = HL, Uint8 val = 0, int write = 0) {
   tick();
   switch (addr >> 13) {
     case 1:
@@ -108,36 +108,36 @@ uint8_t mem8(uint16_t addr = HL, uint8_t val = 0, int write = 0) {
   }
 }
 
-void set_flags(uint8_t mask, int Z, int N, int H, int C) {
+void set_flags(Uint8 mask, int Z, int N, int H, int C) {
   F = F & mask | !Z << 7 | N << 6 | H << 5 | C << 4;
 }
 
-uint16_t read16(uint16_t &addr = PC) {
+Uint16 read16(Uint16 &addr = PC) {
   tmp8 = mem8(addr++);
   return mem8(addr++) << 8 | tmp8;
 }
 
-void push(uint16_t val) {
+void push(Uint16 val) {
   mem8(--SP, val >> 8, 1);
   mem8(--SP, val, 1);
   tick();
 }
 
-uint8_t reg8_access(uint8_t val, int write = 1, uint8_t o = opcrel) {
+Uint8 reg8_access(Uint8 val, int write = 1, Uint8 o = opcrel) {
   return (o &= 7) == 6 ? mem8(HL, val, write)
          : write       ? *reg8_group[o] = val
                        : *reg8_group[o];
 }
 
-uint8_t get_color(int tile, int y_offset, int x_offset) {
-  uint8_t *tile_data = &video_ram[tile * 16 + y_offset * 2];
+Uint8 get_color(int tile, int y_offset, int x_offset) {
+  Uint8 *tile_data = &video_ram[tile * 16 + y_offset * 2];
   return (tile_data[1] >> x_offset) % 2 * 2 + (*tile_data >> x_offset) % 2;
 }
 
 int main(int, char**) {
-  rom1 = (rom0 = (uint8_t *)SDL_LoadFile("rom.gb", NULL)) + 32768;
+  rom1 = (rom0 = (Uint8 *)SDL_LoadFile("rom.gb", NULL)) + 32768;
   if(!rom0) return -1;
-  extrambank = extram = (uint8_t *)SDL_realloc(SDL_LoadFile("rom.sav", NULL), 32768);
+  extrambank = extram = (Uint8 *)SDL_realloc(SDL_LoadFile("rom.sav", NULL), 32768);
   LCDC = 145;
   DIV = 44032;
   SDL_Init(SDL_INIT_VIDEO);
@@ -203,7 +203,7 @@ int main(int, char**) {
       OP5_FLAG(32, 24) // JR i8 / JR <condition>, i8
         tmp8 = mem8(PC++);
         if (carry)
-          PC += (int8_t)tmp8, tick();
+          PC += (Sint8)tmp8, tick();
         break;
 
       case 39: // DAA
@@ -320,7 +320,7 @@ int main(int, char**) {
           OP8_REL(56) // SRL r8 / SRL (HL)
             carry = tmp8 & 1;
             tmp8 = (opcode & 48) == 32
-                       ? (int8_t)tmp8 >> 1
+                       ? (Sint8)tmp8 >> 1
                        : tmp8 / 2 + (opcode & 32   ? 0
                                      : opcode & 16 ? (F * 8 & 128)
                                                    : carry * 128);
@@ -363,8 +363,8 @@ int main(int, char**) {
         break;
 
       case 248: // LD HL, SP + i8
-        HL = SP + (int8_t)(tmp8 = mem8(PC++));
-        set_flags(0, 1, 0, SP % 16 + tmp8 % 16 > 15, (uint8_t)SP + tmp8 > 255);
+        HL = SP + (Sint8)(tmp8 = mem8(PC++));
+        set_flags(0, 1, 0, SP % 16 + tmp8 % 16 > 15, (Uint8)SP + tmp8 > 255);
         tick();
         break;
 
@@ -378,20 +378,20 @@ int main(int, char**) {
         if (++ppu_dot == 456) {
           if (LY < 144)
             for (tmp = 160; --tmp >= 0;) {
-              uint8_t is_window =
+              Uint8 is_window =
                           LCDC & 32 && LY >= io[330] && tmp >= io[331] - 7,
                       x_offset = is_window ? tmp - io[331] + 7 : tmp + io[323],
                       y_offset = is_window ? LY - io[330] : LY + io[322];
-              uint16_t
+              Uint16
                   palette_index = 0,
                   tile = video_ram[(LCDC & (is_window ? 64 : 8) ? 7 : 6) << 10 |
                                    y_offset / 8 * 32 + x_offset / 8],
-                  color = get_color(LCDC & 16 ? tile : 256 + (int8_t)tile,
+                  color = get_color(LCDC & 16 ? tile : 256 + (Sint8)tile,
                                     y_offset & 7, 7 - x_offset & 7);
 
               if (LCDC & 2)
-                for (uint8_t *sprite = io; sprite < io + 160; sprite += 4) {
-                  uint8_t sprite_x = tmp - sprite[1] + 8,
+                for (Uint8 *sprite = io; sprite < io + 160; sprite += 4) {
+                  Uint8 sprite_x = tmp - sprite[1] + 8,
                           sprite_y = LY - *sprite + 16,
                           sprite_color = get_color(
                               sprite[2], sprite_y ^ (sprite[3] & 64 ? 7 : 0),
