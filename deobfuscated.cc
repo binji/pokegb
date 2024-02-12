@@ -38,9 +38,11 @@ uint16_t PC = 256, *reg16 = (uint16_t *)reg8, &HL = reg16[2], SP = 65534,
          *reg16_group1[] = {reg16, reg16 + 1, &HL, &SP},
          *reg16_group2[] = {reg16, reg16 + 1, &HL, &HL}, prev_cycles, cycles;
 
-int tmp, tmp2, F_mask[] = {128, 128, 16, 16}, frame_buffer[23040],
+int tmp, delay, F_mask[] = {128, 128, 16, 16}, frame_buffer[23040],
                palette[] = {-1, -23197,   -65536,    -1 << 24,
                             -1, -8092417, -12961132, -1 << 24};
+double speed_compensation;
+Uint64 ot, nt;
 
 void tick() { cycles += 4; }
 
@@ -146,6 +148,7 @@ int main(int, char**) {
       renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 160, 144);
   key_state = SDL_GetKeyboardState(0);
 
+  ot = SDL_GetTicks64();
   while (1) {
     prev_cycles = cycles;
     if (IME & IF & io[511]) {
@@ -420,6 +423,13 @@ int main(int, char**) {
                 SDL_RWclose(sav);
                 return 0;
               }
+            nt = SDL_GetTicks64();
+            speed_compensation += 16.7427 - (nt - ot);
+            delay = (int)(speed_compensation);
+            speed_compensation -= delay;
+            ot = nt;
+            if(delay > 0)
+              SDL_Delay(delay);
           }
 
           LY = (LY + 1) % 154;
